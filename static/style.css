@@ -12,20 +12,21 @@
     overflow: hidden;
 }
 
-.left-drawer{}
+.left-drawer{
+    text-align: left !important;
+}
 
 .drawer-button{
     width: 100%;
     /* background-color: transparent !important;
     box-shadow: transparent !important;
     border: transparent !important; */
-
-    background-color: transparent !important; /* Remove background */
-    border: none !important; /* Remove border */
-    box-shadow: none !important; /* Remove shadow */
-    color: inherit !important; /* Keep the default text color */
-    font-size: inherit; /* Inherit font size from parent */
-    cursor: pointer; /* Maintain pointer cursor */
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: inherit !important;
+    font-size: inherit;
+    cursor: pointer;
     outline: none !important;
 }
 
@@ -50,4 +51,11 @@
 .create-server-popup{
     height: 80%;
     width: 40%;
+    border-radius: 10px !important;
+}
+
+.server-card{
+    width: 200px;
+    height: 80px;
+    border-radius: 10px !important;
 }
