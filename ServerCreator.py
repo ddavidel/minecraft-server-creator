@@ -2,6 +2,11 @@
 import os
 from nicegui import ui, html, app
 
+from modules.pages import (
+    build_base_window,
+    home,
+)
+
 
 class Main:
     """Main class"""
@@ -13,19 +18,17 @@ class Main:
 
     def run(self):
         """Main"""
-        ui.add_head_html("<link rel='stylesheet' href='/static/style.css'>")
-
-        with ui.header(elevated=True).classes("nav-bar"):
-            ui.label("Minecraft Server Creator")
-
-        with html.section().classes("content"):
-            ui.label("Minecraft Server Creator").style("font-size: 40px; ")
+        build_base_window()
+        container = html.section()
+        home(container)
 
         ui.run(
             native=True,
-            window_size=(800, 600),
+            window_size=(1300, 800),
             reload=False,
             title="Minecraft Server Creator",
+            dark=True,
+            frameless=True
         )
 
 Main().run()

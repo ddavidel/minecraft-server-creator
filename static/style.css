@@ -1,13 +1,53 @@
 .content{
+    color: #ffffff;
     height: 100%;
     width: 100%;
-    background-color: aqua;
 }
 
 .nav-bar{
-    color: black;
+    color: #ffffff;
     background-color: red;
     margin: 10px;
     border-radius: 10px;
     overflow: hidden;
+}
+
+.left-drawer{}
+
+.drawer-button{
+    width: 100%;
+    /* background-color: transparent !important;
+    box-shadow: transparent !important;
+    border: transparent !important; */
+
+    background-color: transparent !important; /* Remove background */
+    border: none !important; /* Remove border */
+    box-shadow: none !important; /* Remove shadow */
+    color: inherit !important; /* Keep the default text color */
+    font-size: inherit; /* Inherit font size from parent */
+    cursor: pointer; /* Maintain pointer cursor */
+    outline: none !important;
+}
+
+.close-button {
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 50%;
+    box-shadow: none !important;
+    text-shadow: transparent !important;
+    color: white !important;
+    font-size: 12px !important; /* Adjust icon size */
+    padding: 8px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    position: absolute !important;
+    top: 10px !important;
+    right: 10px !important;
+    outline: transparent !important;
+}
+
+.create-server-popup{
+    height: 80%;
+    width: 40%;
 }
