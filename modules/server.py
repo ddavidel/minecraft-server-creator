@@ -3,7 +3,7 @@ Minecraft Server Module
 """
 
 import json
-
+import os
 
 server_list = []
 
@@ -12,6 +12,11 @@ def load_servers():
     """
     Function to load server as a MinecraftServer class instance
     """
+    if not os.path.exists("config/servers.json"):
+        with open("config/servers.json", "w", encoding="utf-8") as file:
+            file.write("{}")
+            file.flush()
+
     with open("config/servers.json", "r", encoding="utf-8") as file:
         servers = json.load(file)
 
