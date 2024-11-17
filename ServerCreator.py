@@ -6,6 +6,10 @@ from modules.pages import (
     build_base_window,
     home,
 )
+from modules.server import load_servers
+
+
+app.native.window_args['resizable'] = False
 
 
 class Main:
@@ -15,12 +19,18 @@ class Main:
             "/static",
             os.path.join(os.getcwd(), "static")
         )
+        ui.colors(primary="#13c187")
+        load_servers()
 
     def run(self):
         """Main"""
-        build_base_window()
+        # Prepare components
+        header = ui.header().classes("content-header")
         container = html.section()
-        home(container)
+
+        # Build view
+        build_base_window(header=header)
+        home(header=header, container=container)
 
         ui.run(
             native=True,

@@ -2,6 +2,14 @@
     color: #ffffff;
     height: 100%;
     width: 100%;
+    align-items: center !important;
+    display: flex !important;
+    justify-content: center !important;
+}
+
+.content-header{
+    background-color: transparent;
+    backdrop-filter: blur(10px);
 }
 
 .nav-bar{
@@ -18,16 +26,21 @@
 
 .drawer-button{
     width: 100%;
-    /* background-color: transparent !important;
-    box-shadow: transparent !important;
-    border: transparent !important; */
     background-color: transparent !important;
     border: none !important;
-    box-shadow: none !important;
+    box-shadow: transparent !important;
     color: inherit !important;
     font-size: inherit;
     cursor: pointer;
     outline: none !important;
+    border-radius: 10px !important;
+    background-color: rgb(70, 70, 70) !important;
+    align-items: start !important;
+    height: 50px !important;
+}
+.drawer-button-primary{
+    background-color: rgba(15, 255, 175, 0.726) !important;
+    height: 70px !important;
 }
 
 .close-button {
@@ -55,7 +68,32 @@
 }
 
 .server-card{
-    width: 200px;
-    height: 80px;
+    width: 49%;
+    height: fit-content;
     border-radius: 10px !important;
+}
+
+.content-empty-state{
+    font-size: 15px;
+    height: 80vh;
+    vertical-align: middle;
+    align-items: center;
+    text-align: center;
+}
+
+.center-text-horizontal{
+    text-align: center !important;
+    align-items: center !important;
+    margin-left: 35% !important;
+}
+
+.start-button{
+    border-radius: 10px !important; 
+}
+
+.stop-button{
+    border-radius: 10px !important; 
+    background-color:rgb(216, 68, 68) !important;
+    width: 10px;
+    height: 10px;
 }

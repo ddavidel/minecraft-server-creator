@@ -2,15 +2,15 @@
 Utils
 """
 
-import sys
 import psutil
 import asyncio
-from nicegui import ui, html
+from nicegui import ui
+from modules.server import MinecraftServer
 
 mc_versions = [
     "1.8.9",
     "1.12.2",
-    "1.20.2", # random ver
+    "1.20.2",  # random ver
 ]
 server_types = {
     0: "Vanilla",
@@ -35,10 +35,10 @@ def popup_create_server():
     async def _create_server():
         n = ui.notification(timeout=None)
         for i in range(10):
-            n.message = f'Computing {i/10:.0%}'
+            n.message = f"Computing {i/10:.0%}"
             n.spinner = True
             await asyncio.sleep(0.2)
-        n.message = 'Done!'
+        n.message = "Done!"
         n.spinner = False
         await asyncio.sleep(1)
         n.dismiss()
@@ -47,7 +47,7 @@ def popup_create_server():
         with ui.row():
             ui.label("New Server").style("font-size: 30px;")
 
-        ui.input(label="Server name")
+        ui.input(label="Server name", validation={'Too long!': lambda value: len(value) < 35})
         ram_label = ui.label(
             f"RAM: 1/{_get_system_total_ram()}GB. "
             f"Suggested: {round(_get_system_total_ram()/4)}GB"
@@ -63,10 +63,28 @@ def popup_create_server():
         ui.separator()
 
         with ui.row():
-            ui.select(server_types,with_input=True, label="Server Type")
+            ui.select(server_types, with_input=True, label="Server Type")
             ui.select(mc_versions, with_input=True, label="Server Version")
 
         with ui.row():
             ui.button("Cancel", on_click=popup.close)
             ui.button("Create", on_click=_create_server)
         return popup
+
+
+def create_server_card(server: MinecraftServer):
+    """Create a server card for server"""
+    with ui.card().classes("server-card"):
+        with ui.row():
+            ui.label(server.name).style("font-size: 25px")
+        with ui.row():
+            start_btn = ui.button(icon="play_arrow").classes("start-button")
+            stop_btm = ui.button(icon="stop").classes("stop-button")
+            if server.running:
+                start_btn.disable()
+            else:
+                stop_btm.disable()
+
+            ui.label(f"Status: {server.status}").style(
+                "opacity: 0.6; margin-left: 190px; margin-top: 10px;"
+            )
