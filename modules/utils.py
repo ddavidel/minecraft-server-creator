@@ -47,8 +47,8 @@ def popup_create_server():
         n = ui.notification(timeout=None)
         n.message = "Creating server"
         n.spinner = True
-        await asyncio.sleep(1)
-        server_instance = MinecraftServer(name=server_name, settings=server_settings)
+        await asyncio.sleep(0.5)
+        MinecraftServer(name=server_name, settings=server_settings)
         # what else to do here?
         n.message = "Server created!"
         n.spinner = False
@@ -125,8 +125,10 @@ def create_server_card(server: MinecraftServer):
                     "stop-button"
                 ).bind_enabled_from(server, "running")
 
-            ui.label(f"Status: {server.status}").style(
+            ui.label(f"").style(
                 "opacity: 0.6; margin-left: 200px; margin-top: 10px;"
+            ).bind_text_from(
+                server, "status", backward=lambda value: f"Status: {value}"
             )
 
 
