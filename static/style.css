@@ -60,6 +60,23 @@
     right: 10px !important;
     outline: transparent !important;
 }
+.minimize-button {
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 50%;
+    box-shadow: none !important;
+    text-shadow: transparent !important;
+    color: white !important;
+    font-size: 12px !important; /* Adjust icon size */
+    padding: 8px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    position: absolute !important;
+    top: 10px !important;
+    right: 30px !important;
+    outline: transparent !important;
+}
 
 .create-server-popup{
     height: 80%;
@@ -88,12 +105,16 @@
 }
 
 .start-button{
-    border-radius: 10px !important; 
+    border-radius: 10px 0px 0px 10px !important; 
 }
 
 .stop-button{
-    border-radius: 10px !important; 
+    border-radius: 0px 10px 10px 0px !important; 
     background-color:rgb(216, 68, 68) !important;
     width: 10px;
     height: 10px;
+}
+
+.create-server-input{
+    width: 48%;
 }

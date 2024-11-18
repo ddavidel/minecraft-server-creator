@@ -7,6 +7,9 @@ from modules.pages import (
     home,
 )
 from modules.server import load_servers
+from modules.utils import (
+    load_server_versions
+)
 
 
 app.native.window_args['resizable'] = False
@@ -21,6 +24,7 @@ class Main:
         )
         ui.colors(primary="#13c187")
         load_servers()
+        load_server_versions()
 
     def run(self):
         """Main"""
