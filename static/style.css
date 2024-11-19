@@ -1,4 +1,4 @@
-.content{
+.content {
     color: #ffffff;
     height: 100%;
     width: 100%;
@@ -7,12 +7,12 @@
     justify-content: center !important;
 }
 
-.content-header{
+.content-header {
     background-color: transparent;
     backdrop-filter: blur(10px);
 }
 
-.nav-bar{
+.nav-bar {
     color: #ffffff;
     background-color: red;
     margin: 10px;
@@ -20,13 +20,12 @@
     overflow: hidden;
 }
 
-.left-drawer{
+.left-drawer {
     text-align: left !important;
 }
 
-.drawer-button{
+.drawer-button {
     width: 100%;
-    background-color: transparent !important;
     border: none !important;
     box-shadow: transparent !important;
     color: inherit !important;
@@ -38,7 +37,8 @@
     align-items: start !important;
     height: 50px !important;
 }
-.drawer-button-primary{
+
+.drawer-button-primary {
     background-color: rgba(15, 255, 175, 0.726) !important;
     height: 70px !important;
 }
@@ -50,7 +50,8 @@
     box-shadow: none !important;
     text-shadow: transparent !important;
     color: white !important;
-    font-size: 12px !important; /* Adjust icon size */
+    font-size: 12px !important;
+    /* Adjust icon size */
     padding: 8px !important;
     display: flex !important;
     justify-content: center !important;
@@ -60,37 +61,20 @@
     right: 10px !important;
     outline: transparent !important;
 }
-.minimize-button {
-    background-color: transparent !important;
-    border: none !important;
-    border-radius: 50%;
-    box-shadow: none !important;
-    text-shadow: transparent !important;
-    color: white !important;
-    font-size: 12px !important; /* Adjust icon size */
-    padding: 8px !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-    position: absolute !important;
-    top: 10px !important;
-    right: 30px !important;
-    outline: transparent !important;
-}
 
-.create-server-popup{
+.create-server-popup {
     height: 80%;
     width: 40%;
     border-radius: 10px !important;
 }
 
-.server-card{
+.server-card {
     width: 49%;
     height: fit-content;
     border-radius: 10px !important;
 }
 
-.content-empty-state{
+.content-empty-state {
     font-size: 15px;
     height: 80vh;
     vertical-align: middle;
@@ -98,23 +82,52 @@
     text-align: center;
 }
 
-.center-text-horizontal{
+.center-text-horizontal {
     text-align: center !important;
     align-items: center !important;
     margin-left: 35% !important;
 }
 
-.start-button{
-    border-radius: 10px 0px 0px 10px !important; 
+.start-button {
+    border-radius: 10px 0px 0px 10px !important;
 }
 
-.stop-button{
-    border-radius: 0px 10px 10px 0px !important; 
-    background-color:rgb(216, 68, 68) !important;
+.stop-button {
+    border-radius: 0px 10px 10px 0px !important;
+    background-color: rgb(216, 68, 68) !important;
     width: 10px;
     height: 10px;
 }
 
-.create-server-input{
+.create-server-input {
     width: 48%;
+}
+
+.refresh-button {
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 50%;
+    box-shadow: none !important;
+    text-shadow: transparent !important;
+    color: white !important;
+    font-size: 12px !important;
+    /* Adjust icon size */
+    padding: 8px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    outline: transparent !important;
+    margin-top: 15px !important;
+}
+
+.normal-secondary-button {
+    background-color: rgb(70, 70, 70) !important;
+    width: 30%;
+    border-radius: 10px !important;
+}
+
+.normal-primary-button {
+    background-color: rgba(15, 255, 175, 0.726) !important;
+    width: 65%;
+    border-radius: 10px !important;
 }

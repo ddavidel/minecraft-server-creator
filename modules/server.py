@@ -4,25 +4,33 @@ Minecraft Server Module
 
 import json
 import os
-import requests
 from uuid import uuid4
+import requests
 from nicegui import binding
+
+from config import settings as mcssettings
 
 
 server_list = []
+
+global_settings = {}
 
 
 def load_servers():
     """
     Function to load server as a MinecraftServer class instance
     """
-    if not os.path.exists("config/servers.json"):
-        with open("config/servers.json", "w", encoding="utf-8") as file:
+    if not os.path.exists(mcssettings.SERVERS_JSON_PATH):
+        with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
             file.write("{}")
             file.flush()
+        return
 
-    with open("config/servers.json", "r", encoding="utf-8") as file:
+    with open(mcssettings.SERVERS_JSON_PATH, "r", encoding="utf-8") as file:
         servers = json.load(file)
+
+    global global_settings  # pylint: disable=global-statement
+    global_settings = servers
 
     for server_name, settings in servers.items():
         MinecraftServer(server_name, settings)
@@ -45,6 +53,9 @@ class MinecraftServer:
         self.stopping = False
 
         if not settings.get("uuid"):
+            global global_settings  # pylint: disable=global-statement
+            if name in global_settings.keys():
+                raise ValueError(f"A server with the name {name} already exists")
             self._create_server()
 
         # add self to server_list
@@ -100,6 +111,11 @@ class MinecraftServer:
         """display friendly jar type"""
         return self.settings["jar_type"]
 
+    @property
+    def uuid(self):
+        """return uuid"""
+        return self.settings["uuid"]
+
     def _create_server(self):
         """
         Actually creates the server on the device
@@ -124,6 +140,9 @@ class MinecraftServer:
         with open(os.path.join(self.settings["folder_path"], "eula.txt"), "w") as eula:
             eula.write("eula=true")
 
+        # save into server.json
+        self._save_server()
+
     def _download_jar(self):
         """downloads jar"""
         # get jar link
@@ -146,6 +165,27 @@ class MinecraftServer:
         except Exception as e:
             print(f"{e}")
             raise
+
+    def _save_server(self):
+        """Saves instance settings into servers.json file"""
+        try:
+            with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
+                global global_settings  # pylint: disable=global-statement
+                if self.name in global_settings.keys():
+                    # FIXME: maybe check before creating and downloading jar...
+                    raise ValueError(
+                        f"A server with the name {self.name} already exists"
+                    )
+
+                # update global_settings
+                global_settings[self.name] = self.settings
+                # save global_settings
+                json.dump(global_settings, file, indent=4)
+        except Exception as e:
+            print(f"Can't save servers: {e}")
+            raise
+
+        print(f"Server {self.name} with uuid {self.uuid} saved!")
 
     def start(
         self,

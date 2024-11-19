@@ -4,6 +4,7 @@ from nicegui import ui, html, app
 
 from modules.pages import (
     build_base_window,
+    build_drawer,
     home,
 )
 from modules.server import load_servers
@@ -18,6 +19,10 @@ app.native.window_args['resizable'] = False
 class Main:
     """Main class"""
     def __init__(self):
+        """
+        Loads stuff.
+        IMPORTANT: Order matters.
+        """
         app.add_static_files(
             "/static",
             os.path.join(os.getcwd(), "static")
@@ -34,6 +39,7 @@ class Main:
 
         # Build view
         build_base_window(header=header)
+        build_drawer()
         home(header=header, container=container)
 
         ui.run(
