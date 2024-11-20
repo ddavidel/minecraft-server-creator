@@ -2,9 +2,13 @@
 Minecraft Server Module
 """
 
+import asyncio
 import json
 import os
+import subprocess
+import threading
 from uuid import uuid4
+import numpy as np
 import requests
 from nicegui import binding
 
@@ -51,6 +55,7 @@ class MinecraftServer:
         self.running = False
         self.starting = False
         self.stopping = False
+        self.process = None
 
         if not settings.get("uuid"):
             global global_settings  # pylint: disable=global-statement
@@ -87,34 +92,44 @@ class MinecraftServer:
         return {}
 
     @property
-    def address(self):
+    def address(self) -> str:
         """ip address"""
         return self.settings.get("address", "undefined")
 
     @property
-    def port(self):
+    def port(self) -> int:
         """port number"""
-        return self.settings.get("port", "undefined")
+        return self.settings.get("port", np.nan)
 
     @property
-    def socket_address(self):
+    def socket_address(self) -> str:
         """display friendly socked addres"""
         return f"{self.address}:{self.port}"
 
     @property
-    def version(self):
+    def version(self) -> str:
         """display friendly server version"""
         return self.settings["version"]
 
     @property
-    def jar_type(self):
+    def jar_type(self) -> int:
         """display friendly jar type"""
         return self.settings["jar_type"]
 
     @property
-    def uuid(self):
+    def uuid(self) -> str:
         """return uuid"""
         return self.settings["uuid"]
+
+    @property
+    def jar_path(self) -> str:
+        """server's jar path"""
+        return os.path.join(self.settings["folder_path"], "server.jar")
+
+    @property
+    def server_path(self) -> str:
+        """server's jar path"""
+        return self.settings["folder_path"]
 
     def _create_server(self):
         """
@@ -187,20 +202,79 @@ class MinecraftServer:
 
         print(f"Server {self.name} with uuid {self.uuid} saved!")
 
-    def start(
-        self,
-    ):
+    async def start(self):
         """Starts the server"""
         self.starting = True
-        self.running = True
-        self.starting = False
-        # raise NotImplementedError()
+        try:
+            # Command to start the server
+            cmd = ["java", "-Xmx1G", "-Xms1G", "-jar", self.jar_path, "nogui"]
 
-    def stop(
-        self,
-    ):
+            # Start the subprocess
+            self.process = await asyncio.create_subprocess_exec(
+                *cmd,
+                cwd=self.server_path,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT
+            )
+
+            # Start tasks for reading output and taking input
+            output_task = asyncio.create_task(self._console_reader())
+            input_task = asyncio.create_task(self._console_writer())
+
+            self.running = True
+            self.starting = False
+            print("Server started. Type commands below:")
+
+            # Wait for the server process to finish
+            await self.process.wait()
+
+            # Cancel input and output tasks once the server stops
+            input_task.cancel()
+            await asyncio.gather(input_task, output_task, return_exceptions=True)
+
+            print("Server stopped.")
+
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+        finally:
+            self.starting = False
+            self.running = False
+
+    async def stop(self):
         """Stops the server"""
         self.stopping = True
-        self.running = False
-        self.stopping = False
-        # raise NotImplementedError()
+        if self.process:
+            self.process.terminate()
+            await self.process.wait()
+            self.process = None
+            self.running = False
+            self.stopping = False
+            print("Server stopped.")
+
+    async def _console_writer(self):
+        """Reads user input and sends it to the server."""
+        try:
+            while self.running:
+                command = await asyncio.to_thread(input, ">>> ")
+                if self.process and self.process.stdin:
+                    self.process.stdin.write(command + "\n")
+                    await self.process.stdin.drain()
+        except Exception as e:
+            print(f"Writer error: {e}")
+
+    async def _console_reader(self) -> str:
+        """reads and prints console output"""
+        try:
+            while self.running:
+                line = await self.process.stdout.readline()
+                if line:
+                    print(line.decode().strip())
+                else:
+                    break
+        except Exception as e:
+            print(f"Reader error: {e}")
