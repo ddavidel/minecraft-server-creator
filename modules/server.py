@@ -5,8 +5,7 @@ Minecraft Server Module
 import asyncio
 import json
 import os
-import subprocess
-import threading
+import signal
 from uuid import uuid4
 import numpy as np
 import requests
@@ -185,13 +184,6 @@ class MinecraftServer:
         """Saves instance settings into servers.json file"""
         try:
             with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
-                global global_settings  # pylint: disable=global-statement
-                if self.name in global_settings.keys():
-                    # FIXME: maybe check before creating and downloading jar...
-                    raise ValueError(
-                        f"A server with the name {self.name} already exists"
-                    )
-
                 # update global_settings
                 global_settings[self.name] = self.settings
                 # save global_settings
@@ -206,8 +198,13 @@ class MinecraftServer:
         """Starts the server"""
         self.starting = True
         try:
-            # Command to start the server
-            cmd = ["java", "-Xmx1G", "-Xms1G", "-jar", self.jar_path, "nogui"]
+            cmd = [
+                "java",
+                f"-Xmx{self.settings['dedicated_ram']}G",
+                f"-Xms{self.settings['dedicated_ram']}G",
+                "-jar", self.jar_path,
+                "nogui"
+            ]
 
             # Start the subprocess
             self.process = await asyncio.create_subprocess_exec(
@@ -229,11 +226,11 @@ class MinecraftServer:
             # Wait for the server process to finish
             await self.process.wait()
 
+            self.running = False
+
             # Cancel input and output tasks once the server stops
             input_task.cancel()
             await asyncio.gather(input_task, output_task, return_exceptions=True)
-
-            print("Server stopped.")
 
         except FileNotFoundError as e:
             print(f"Error: {e}")
@@ -247,22 +244,37 @@ class MinecraftServer:
 
     async def stop(self):
         """Stops the server"""
-        self.stopping = True
-        if self.process:
-            self.process.terminate()
-            await self.process.wait()
-            self.process = None
-            self.running = False
-            self.stopping = False
-            print("Server stopped.")
+        if self.process and self.running:
+            print("Stopping the server...")
+            try:
+                # Send the 'stop' command to the server
+                if self.process.stdin:
+                    self.process.stdin.write(b"stop\n")
+                    await self.process.stdin.drain()
+
+                # Wait for the process to terminate gracefully
+                await self.process.wait()
+                print("Server stopped.")
+            except Exception as e:
+                print(f"Error while stopping the server: {e}")
+            finally:
+                # Ensure process cleanup
+                self.process = None
+                self.running = False
+                self.stopping = False
+        else:
+            print("Server is not running.")
 
     async def _console_writer(self):
         """Reads user input and sends it to the server."""
         try:
             while self.running:
-                command = await asyncio.to_thread(input, ">>> ")
-                if self.process and self.process.stdin:
-                    self.process.stdin.write(command + "\n")
+                command = await asyncio.to_thread(input)
+                if self.process and self.process.stdin and command == "stop":
+                    self.stop()
+
+                elif self.process and self.process.stdin:
+                    self.process.stdin.write((command + "\n").encode())  # Encode the string
                     await self.process.stdin.drain()
         except Exception as e:
             print(f"Writer error: {e}")
@@ -278,3 +290,14 @@ class MinecraftServer:
                     break
         except Exception as e:
             print(f"Reader error: {e}")
+
+
+def get_server_by_name(server_name: str) -> MinecraftServer | None:
+    """
+    Returns server instance found by name.
+    To update once i change servers.json to have uuids as keys and not name
+    """
+    for server in server_list:
+        if server.name == server_name:
+            return server
+    return None
