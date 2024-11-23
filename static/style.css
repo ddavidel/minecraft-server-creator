@@ -73,6 +73,11 @@
     height: fit-content;
     border-radius: 10px !important;
 }
+.server-card-link {
+    text-decoration: none;
+    font-size: 25px;
+    color: inherit;
+}
 
 .content-empty-state {
     font-size: 15px;
@@ -130,4 +135,21 @@
     background-color: rgba(15, 255, 175, 0.726) !important;
     width: 65%;
     border-radius: 10px !important;
+}
+
+.back-button {
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 50%;
+    box-shadow: none !important;
+    text-shadow: transparent !important;
+    color: white !important;
+    font-size: 12px !important;
+    /* Adjust icon size */
+    padding: 8px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    outline: transparent !important;
+    margin-top: 15px !important;
 }
