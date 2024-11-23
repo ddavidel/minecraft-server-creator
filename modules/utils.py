@@ -51,6 +51,7 @@ def popup_create_server():
     # local variables
     system_ram = _get_system_total_ram()
     server_settings = {
+        "name": "",
         "dedicated_ram": round(system_ram / 4),
         "version": urls.latest_stable(),
         "jar_type": 0,
@@ -58,17 +59,17 @@ def popup_create_server():
         "port": 25565,
     }
 
-    async def _create_server(caller: ui.button, server_name: str, settings: dict):
+    async def _create_server(caller: ui.button, settings: dict):
         caller.disable()
         n = ui.notification(
-            message=f"Starting creation of server '{server_name}'",
+            message=f"Starting creation of server {settings.get('name')}",
             timeout=None,
             spinner=True,
             type="info",
         )
         await asyncio.sleep(1)
         try:
-            server_name = server_name.strip()
+            server_name = settings.get("name").strip()
             assert server_name != "", "Server name can't be empty"
             if not settings.get("address"):
                 raise ValueError("Server address can't be empty")
@@ -79,16 +80,16 @@ def popup_create_server():
             except ipaddress.AddressValueError as e:
                 raise ValueError("Invalid IPv4 address") from e
 
-            MinecraftServer(name=server_name, settings=settings.copy())
+            MinecraftServer(settings=settings.copy())
             # Reset settings and name
             settings = {
+                "name": "",
                 "dedicated_ram": round(system_ram / 4),
                 "version": urls.latest_stable(),
                 "jar_type": 0,
                 "address": "",
                 "port": 25565,
             }
-            server_name = ""
 
             # notify user
             caller.enable()
@@ -113,10 +114,13 @@ def popup_create_server():
             ui.label("New Server").style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
-            name_input = ui.input(
+            ui.input(
                 label="Server name",
                 validation={"Too long!": lambda value: len(value) < 35},
-            ).classes("create-server-input")
+            ).classes("create-server-input").bind_value_to(
+                server_settings,
+                "name",
+            )
             ui.input(
                 label="IPv4 Address",
                 validation={"Too long!": lambda value: len(value) < 16},
@@ -166,11 +170,7 @@ def popup_create_server():
                 "Create",
                 icon="add",
             ).classes("normal-primary-button")
-            cb.on_click(
-                lambda x: _create_server(
-                    caller=cb, server_name=name_input.value, settings=server_settings
-                )
-            )
+            cb.on_click(lambda x: _create_server(caller=cb, settings=server_settings))
         return popup
 
 
@@ -282,8 +282,8 @@ def popup_edit_server(server: MinecraftServer):
         )
         await asyncio.sleep(1)
         try:
-            server_name = server_name.strip()
-            assert server_name != "", "Server name can't be empty"
+            server.name = server.name.strip()
+            assert server.name != "", "Server name can't be empty"
             if not server.address:
                 raise ValueError("Server address can't be empty")
 
@@ -294,6 +294,7 @@ def popup_edit_server(server: MinecraftServer):
                 raise ValueError("Invalid IPv4 address") from e
 
             # validation completed. save new settings.
+            server.save_server()
 
             # notify user
             caller.enable()
@@ -321,10 +322,7 @@ def popup_edit_server(server: MinecraftServer):
             ui.input(
                 label="Server name",
                 validation={"Too long!": lambda value: len(value) < 35},
-            ).classes("create-server-input").bind_value(
-                server.settings,
-                "name"
-            )
+            ).classes("create-server-input").bind_value(server.settings, "name")
             ui.input(
                 label="IPv4 Address",
                 validation={"Too long!": lambda value: len(value) < 16},
@@ -359,10 +357,10 @@ def popup_edit_server(server: MinecraftServer):
         with ui.row().style("width: 100%;"):
             ui.select(server_types, with_input=True, label="Server Type").bind_value(
                 server.settings, "jar_type"
-            ).classes("create-server-input")
+            ).classes("create-server-input").disable()
             ui.select(server_versions, with_input=True, label="Server Version").classes(
                 "create-server-input"
-            ).bind_value(server.settings, "version")
+            ).bind_value(server.settings, "version").disable()
 
         ui.separator()
 
@@ -371,10 +369,8 @@ def popup_edit_server(server: MinecraftServer):
                 "normal-secondary-button"
             )
             cb = ui.button(
-                "Create",
-                icon="add",
+                "Save",
+                icon="save",
             ).classes("normal-primary-button")
-            cb.on_click(
-                lambda x: _edit_server(caller=cb, server=server)
-            )
+            cb.on_click(lambda x: _edit_server(caller=cb, server=server))
         return popup

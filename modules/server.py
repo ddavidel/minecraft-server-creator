@@ -5,7 +5,6 @@ Minecraft Server Module
 import asyncio
 import json
 import os
-import signal
 from uuid import uuid4
 import numpy as np
 import requests
@@ -35,8 +34,8 @@ def load_servers():
     global global_settings  # pylint: disable=global-statement
     global_settings = servers
 
-    for server_name, settings in servers.items():
-        MinecraftServer(server_name, settings)
+    for server_uuid, settings in servers.items():
+        MinecraftServer(settings=settings, uuid=server_uuid)
 
 
 class MinecraftServer:
@@ -48,18 +47,16 @@ class MinecraftServer:
     name = binding.BindableProperty()
     settings = binding.BindableProperty()
 
-    def __init__(self, name: str = "", settings: dict = None):
-        self.name = name
+    def __init__(self, settings: dict, uuid: str = ""):
+        self.name = settings.get("name")
         self.settings = settings or {}
         self.running = False
         self.starting = False
         self.stopping = False
         self.process = None
+        self.log = None
 
-        if not settings.get("uuid"):
-            global global_settings  # pylint: disable=global-statement
-            if name in global_settings.keys():
-                raise ValueError(f"A server with the name {name} already exists")
+        if not uuid:
             self._create_server()
 
         # add self to server_list
@@ -130,6 +127,13 @@ class MinecraftServer:
         """server's jar path"""
         return self.settings["folder_path"]
 
+    @property
+    def has_server_properties(self) -> bool:
+        """Returns true if server.properties is in server dir"""
+        return os.path.exists(
+            os.path.join(self.server_path, "server.properties")
+        )
+
     def _create_server(self):
         """
         Actually creates the server on the device
@@ -155,7 +159,7 @@ class MinecraftServer:
             eula.write("eula=true")
 
         # save into server.json
-        self._save_server()
+        self.save_server()
 
     def _download_jar(self):
         """downloads jar"""
@@ -180,19 +184,23 @@ class MinecraftServer:
             print(f"{e}")
             raise
 
-    def _save_server(self):
+    def save_server(self):
         """Saves instance settings into servers.json file"""
         try:
             with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
                 # update global_settings
-                global_settings[self.name] = self.settings
+                global_settings[self.uuid] = self.settings
                 # save global_settings
                 json.dump(global_settings, file, indent=4)
+
+                # update name
+                self.name = self.settings.get("name")
+
         except Exception as e:
             print(f"Can't save servers: {e}")
             raise
 
-        print(f"Server {self.name} with uuid {self.uuid} saved!")
+        print(f"Server {self.uuid} saved!")
 
     async def start(self):
         """Starts the server"""
@@ -202,8 +210,9 @@ class MinecraftServer:
                 "java",
                 f"-Xmx{self.settings['dedicated_ram']}G",
                 f"-Xms{self.settings['dedicated_ram']}G",
-                "-jar", self.jar_path,
-                "nogui"
+                "-jar",
+                self.jar_path,
+                "nogui",
             ]
 
             # Start the subprocess
@@ -212,7 +221,7 @@ class MinecraftServer:
                 cwd=self.server_path,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT
+                stderr=asyncio.subprocess.STDOUT,
             )
 
             # Start tasks for reading output and taking input
@@ -221,7 +230,6 @@ class MinecraftServer:
 
             self.running = True
             self.starting = False
-            print("Server started. Type commands below:")
 
             # Wait for the server process to finish
             await self.process.wait()
@@ -274,7 +282,7 @@ class MinecraftServer:
                     self.stop()
 
                 elif self.process and self.process.stdin:
-                    self.process.stdin.write((command + "\n").encode())  # Encode the string
+                    self.process.stdin.write((command + "\n").encode())
                     await self.process.stdin.drain()
         except Exception as e:
             print(f"Writer error: {e}")
@@ -284,9 +292,9 @@ class MinecraftServer:
         try:
             while self.running:
                 line = await self.process.stdout.readline()
-                if line:
-                    print(line.decode().strip())
-                else:
+                if self.log and line:
+                    self.log.push(line.decode().strip())
+                elif not line:
                     break
         except Exception as e:
             print(f"Reader error: {e}")
@@ -295,9 +303,19 @@ class MinecraftServer:
 def get_server_by_name(server_name: str) -> MinecraftServer | None:
     """
     Returns server instance found by name.
-    To update once i change servers.json to have uuids as keys and not name
+    Probably not gonna be used
     """
     for server in server_list:
         if server.name == server_name:
+            return server
+    return None
+
+
+def get_server_by_uuid(uuid: str) -> MinecraftServer | None:
+    """
+    Returns server instance by by uuid.
+    """
+    for server in server_list:
+        if server.uuid == uuid:
             return server
     return None
