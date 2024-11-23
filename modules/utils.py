@@ -9,8 +9,8 @@ from nicegui import ui
 import requests
 import ipaddress
 import pandas as pd
-from modules.server import MinecraftServer
 
+from modules.server import MinecraftServer
 from config import settings as mcssettings
 
 
@@ -174,28 +174,6 @@ def popup_create_server():
         return popup
 
 
-def create_server_card(server: MinecraftServer):
-    """Create a server card for server"""
-    with ui.card().classes("server-card"):
-        with ui.row():
-            ui.label(server.name).style("font-size: 25px")
-        with ui.row():
-            with ui.button_group():
-                ui.button(icon="play_arrow").on_click(server.start).classes(
-                    "start-button"
-                ).bind_enabled_from(server, "running", lambda s: not s)
-
-                ui.button(icon="stop").on_click(server.stop).classes(
-                    "stop-button"
-                ).bind_enabled_from(server, "running")
-
-            ui.label(f"").style(
-                "opacity: 0.6; margin-left: 200px; margin-top: 10px;"
-            ).bind_text_from(
-                server, "status", backward=lambda value: f"Status: {value}"
-            )
-
-
 def load_server_versions():
     """Loads server versions"""
     response = requests.get(VERSION_LIST_URL, timeout=10)
@@ -287,3 +265,116 @@ class JarUrl:
             return filtered_list
 
         return version_list
+
+
+def popup_edit_server(server: MinecraftServer):
+    """Create server popup window"""
+    # bind setting to inputs
+    system_ram = _get_system_total_ram()
+
+    async def _edit_server(caller: ui.button, server: MinecraftServer):
+        caller.disable()
+        n = ui.notification(
+            message=f"Saving settings of server '{server.name}'",
+            timeout=None,
+            spinner=True,
+            type="info",
+        )
+        await asyncio.sleep(1)
+        try:
+            server_name = server_name.strip()
+            assert server_name != "", "Server name can't be empty"
+            if not server.address:
+                raise ValueError("Server address can't be empty")
+
+            # address is present: check if it is a valid ip address
+            try:
+                ipaddress.IPv4Address(server.address)
+            except ipaddress.AddressValueError as e:
+                raise ValueError("Invalid IPv4 address") from e
+
+            # validation completed. save new settings.
+
+            # notify user
+            caller.enable()
+            n.spinner = False
+            n.type = "positive"
+            n.message = "Settings saved!"
+            await asyncio.sleep(3)
+            n.dismiss()
+
+        except Exception as e:
+            caller.enable()
+            n.spinner = False
+            n.type = "negative"
+            n.message = str(e)
+            await asyncio.sleep(3)
+            n.dismiss()
+
+        caller.enable()
+
+    with ui.dialog() as popup, ui.card().classes("create-server-popup"):
+        with ui.row():
+            ui.label("Edit Server").style("font-size: 30px;")
+
+        with ui.row().style("width: 100%;"):
+            ui.input(
+                label="Server name",
+                validation={"Too long!": lambda value: len(value) < 35},
+            ).classes("create-server-input").bind_value(
+                server.settings,
+                "name"
+            )
+            ui.input(
+                label="IPv4 Address",
+                validation={"Too long!": lambda value: len(value) < 16},
+            ).classes("create-server-input").bind_value(
+                server.settings,
+                "address",
+            )
+
+        ui.separator()
+
+        ui.label("Dedicated RAM").style("font-size: 30px;")
+        ui.label(f"Suggested for this device: {round(system_ram/4)}GB").style(
+            "opacity: 0.6"
+        )
+        with ui.row().style("width: 100%; margin-top: 10px;"):
+            ui.label("1 GB")
+            ui.slider(
+                max=system_ram,
+                min=1,
+                step=1,
+                value=round(system_ram / 4),
+            ).classes("create-server-input").style("width: 75%;").props(
+                "label-always"
+            ).bind_value(
+                server.settings, "dedicated_ram"
+            )
+            ui.label(f"{system_ram} GB")
+
+        ui.separator()
+        ui.label("Other settings").style("font-size: 30px;")
+
+        with ui.row().style("width: 100%;"):
+            ui.select(server_types, with_input=True, label="Server Type").bind_value(
+                server.settings, "jar_type"
+            ).classes("create-server-input")
+            ui.select(server_versions, with_input=True, label="Server Version").classes(
+                "create-server-input"
+            ).bind_value(server.settings, "version")
+
+        ui.separator()
+
+        with ui.row().style("width: 100%;").style("flex-grow: 1;"):
+            ui.button("Cancel", on_click=popup.close, icon="close").classes(
+                "normal-secondary-button"
+            )
+            cb = ui.button(
+                "Create",
+                icon="add",
+            ).classes("normal-primary-button")
+            cb.on_click(
+                lambda x: _edit_server(caller=cb, server=server)
+            )
+        return popup
