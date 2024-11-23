@@ -27,7 +27,6 @@ class Main:
             "/static",
             os.path.join(os.getcwd(), "static")
         )
-        ui.colors(primary="#13c187")
         load_servers()
         load_server_versions()
 
