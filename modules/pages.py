@@ -56,7 +56,7 @@ def server_detail(uuid: str):
     # setup content
     load_head()
     header = ui.header().classes("content-header")
-    container = html.section()
+    container = html.section().classes("content")
 
     server = get_server_by_uuid(uuid=uuid)
 
@@ -66,6 +66,11 @@ def server_detail(uuid: str):
             "back-button"
         )
         ui.label(server.name).style("font-size: 40px;")
+        # TODO: use this chip to display server status
+        ui.chip(color='green').bind_value_from(
+            server,
+            "status"
+        )
 
     with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
         ui.label("Settings").style("font-size: 35px")
@@ -89,7 +94,7 @@ def server_detail(uuid: str):
         )
 
     with container:
-        log = ui.log(mcssettings.MAX_LOG_LINES)
+        log = ui.log(mcssettings.MAX_LOG_LINES).classes("log-window")
         server.log = log
 
 def create_server_card(server: MinecraftServer):

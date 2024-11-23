@@ -208,8 +208,8 @@ class MinecraftServer:
         try:
             cmd = [
                 "java",
-                f"-Xmx{self.settings['dedicated_ram']}G",
-                f"-Xms{self.settings['dedicated_ram']}G",
+                "-Xmx1G", # f"-Xmx{self.settings['dedicated_ram']}G",
+                "-Xms1G", # f"-Xms{self.settings['dedicated_ram']}G",
                 "-jar",
                 self.jar_path,
                 "nogui",
@@ -279,7 +279,7 @@ class MinecraftServer:
             while self.running:
                 command = await asyncio.to_thread(input)
                 if self.process and self.process.stdin and command == "stop":
-                    self.stop()
+                    await self.stop()
 
                 elif self.process and self.process.stdin:
                     self.process.stdin.write((command + "\n").encode())
