@@ -8,13 +8,11 @@ from config import settings as mcssettings
 
 from modules.utils import (
     popup_create_server,
-    popup_edit_server
+    popup_edit_server,
+    write_to_console_and_clean,
+    popup_delete_server
 )
-from modules.server import (
-    MinecraftServer,
-    server_list,
-    get_server_by_uuid
-)
+from modules.server import MinecraftServer, server_list, get_server_by_uuid
 
 
 def load_head():
@@ -30,6 +28,7 @@ def build_base_window(header: ui.header):
     with header:
         ui.button("", on_click=app.shutdown, icon="close").classes("close-button")
 
+
 def build_drawer():
     """Builds left drawer"""
     with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
@@ -41,16 +40,12 @@ def build_drawer():
         ).classes("drawer-button drawer-button-primary")
         ui.button(
             "Dashboard",
-            on_click=None,
+            on_click=home.refresh,
             icon="space_dashboard",
         ).classes("drawer-button")
-        ui.button(
-            "Console",
-            on_click=None,
-            icon="terminal",
-        ).classes("drawer-button")
 
-@ui.page('/server_detail/{uuid}')
+
+@ui.page("/server_detail/{uuid}")
 def server_detail(uuid: str):
     """Page that displays the server details"""
     # setup content
@@ -66,11 +61,14 @@ def server_detail(uuid: str):
             "back-button"
         )
         ui.label(server.name).style("font-size: 40px;")
-        # TODO: use this chip to display server status
-        ui.chip(color='green').bind_value_from(
-            server,
-            "status"
-        )
+        with ui.button_group().style("margin: 12px"):
+            ui.button("Start", icon="play_arrow").on_click(server.start).classes(
+                "start-button"
+            ).bind_enabled_from(server, "running", lambda s: not s)
+
+            ui.button(icon="stop").on_click(server.stop).classes(
+                "stop-button"
+            ).bind_enabled_from(server, "running")
 
     with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
         ui.label("Settings").style("font-size: 35px")
@@ -92,16 +90,34 @@ def server_detail(uuid: str):
             server,
             "has_server_properties",
         )
+        ui.button(
+            "Delete server",
+            on_click=lambda x: popup_delete_server(server=server),
+            icon="delete",
+        ).classes("drawer-button").style(
+            "background-color: rgb(216, 68, 68) !important"
+        )
 
     with container:
         log = ui.log(mcssettings.MAX_LOG_LINES).classes("log-window")
         server.log = log
 
+        with ui.row().style("width: 100%;"):
+            console_input = ui.input("Write command").on(
+                "keydown.enter",
+                handler=lambda x: write_to_console_and_clean(
+                    caller=console_input, server=server
+                ),
+            ).classes("console-input")
+
+
 def create_server_card(server: MinecraftServer):
     """Create a server card for server"""
     with ui.card().classes("server-card"):
         with ui.row():
-            ui.link(server.name, f"/server_detail/{server.uuid}").classes("server-card-link")
+            ui.link(server.name, f"/server_detail/{server.uuid}").classes(
+                "server-card-link"
+            )
 
         with ui.row():
             with ui.button_group():
