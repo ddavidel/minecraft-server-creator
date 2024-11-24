@@ -5,6 +5,7 @@ Minecraft Server Module
 import asyncio
 import json
 import os
+import shutil
 from uuid import uuid4
 import numpy as np
 import requests
@@ -159,7 +160,7 @@ class MinecraftServer:
             eula.write("eula=true")
 
         # save into server.json
-        self.save_server()
+        self.save()
 
     def _download_jar(self):
         """downloads jar"""
@@ -184,17 +185,21 @@ class MinecraftServer:
             print(f"{e}")
             raise
 
-    def save_server(self):
+    def _save_settings(self):
+        """saves global settings to servers.json"""
+        with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
+            # save global_settings
+            json.dump(global_settings, file, indent=4)
+
+    def save(self):
         """Saves instance settings into servers.json file"""
         try:
-            with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
-                # update global_settings
-                global_settings[self.uuid] = self.settings
-                # save global_settings
-                json.dump(global_settings, file, indent=4)
-
-                # update name
-                self.name = self.settings.get("name")
+            # update global_settings
+            global_settings[self.uuid] = self.settings
+            # save global_settings
+            self._save_settings()
+            # update name
+            self.name = self.settings.get("name")
 
         except Exception as e:
             print(f"Can't save servers: {e}")
@@ -208,11 +213,12 @@ class MinecraftServer:
         try:
             cmd = [
                 "java",
-                "-Xmx1G", # f"-Xmx{self.settings['dedicated_ram']}G",
-                "-Xms1G", # f"-Xms{self.settings['dedicated_ram']}G",
+                f"-d{mcssettings.JAVA_BIT_MODEL}",
+                f"-Xmx{self.settings['dedicated_ram']}G",
+                f"-Xms{self.settings['dedicated_ram']}G",
                 "-jar",
                 self.jar_path,
-                "nogui",
+                "nogui" if mcssettings.NOGUI else "",
             ]
 
             # Start the subprocess
@@ -226,7 +232,7 @@ class MinecraftServer:
 
             # Start tasks for reading output and taking input
             output_task = asyncio.create_task(self._console_reader())
-            input_task = asyncio.create_task(self._console_writer())
+            # input_task = asyncio.create_task(self.console_writer())
 
             self.running = True
             self.starting = False
@@ -237,8 +243,7 @@ class MinecraftServer:
             self.running = False
 
             # Cancel input and output tasks once the server stops
-            input_task.cancel()
-            await asyncio.gather(input_task, output_task, return_exceptions=True)
+            await asyncio.gather(output_task, return_exceptions=True)
 
         except FileNotFoundError as e:
             print(f"Error: {e}")
@@ -273,11 +278,11 @@ class MinecraftServer:
         else:
             print("Server is not running.")
 
-    async def _console_writer(self):
+    async def console_writer(self, command: str):
         """Reads user input and sends it to the server."""
         try:
-            while self.running:
-                command = await asyncio.to_thread(input)
+            if self.running:
+                # command = await asyncio.to_thread(input)
                 if self.process and self.process.stdin and command == "stop":
                     await self.stop()
 
@@ -298,6 +303,40 @@ class MinecraftServer:
                     break
         except Exception as e:
             print(f"Reader error: {e}")
+
+    def delete(self, delete_dir: bool = False):
+        """Deletes the server from servers.json"""
+        if delete_dir:
+            for item in os.listdir(self.server_path):
+                item_path = os.path.join(self.server_path, item)
+                try:
+                    if os.path.isfile(item_path) or os.path.islink(item_path):
+                        os.unlink(item_path)
+                    elif os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+                except Exception as e:
+                    print('Failed to delete %s: %s' % (item_path, e))
+            # remove server dir
+            shutil.rmtree(self.server_path)
+
+        # remove from server_list
+        assert self in server_list, "Invalid server"
+        server_list.remove(self)
+
+        # remove from global_settings
+        assert global_settings[self.uuid], "Invalid server"
+        del global_settings[self.uuid]
+
+        # update settings
+        try:
+            self._save_settings()
+
+        except Exception as e:
+            print(f"Can't delete server: {e}")
+            raise
+
+        print(f"Deleted server {self.uuid}")
+
 
 
 def get_server_by_name(server_name: str) -> MinecraftServer | None:

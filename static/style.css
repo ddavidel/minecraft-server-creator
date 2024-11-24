@@ -1,10 +1,29 @@
+/* STUFF */
+/* width */
+::-webkit-scrollbar {
+    width: 0px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+    background: transparent !important;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+    background: transparent;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+    background: transparent;
+}
+
+/* CLASSES */
 .content {
     color: #ffffff;
     height: 100% !important;
     width: 100% !important;
-    align-items: center !important;
-    display: flex !important;
-    justify-content: center !important;
 }
 
 .content-header {
@@ -63,7 +82,8 @@
 }
 
 .create-server-popup {
-    height: 80%;
+    /* height: 80%; */
+    width: min-content;
     width: 40%;
     border-radius: 10px !important;
 }
@@ -80,11 +100,15 @@
 }
 
 .content-empty-state {
+    align-items: center !important;
+    display: flex !important;
+    justify-content: center !important;
     font-size: 15px;
     height: 80vh;
     vertical-align: middle;
     align-items: center;
     text-align: center;
+    margin-top: 30vh !important;
 }
 
 .center-text-horizontal {
@@ -156,5 +180,16 @@
 
 .log-window {
     width: 100% !important;
+    height: 580px !important;
     border-radius: 10px;
+}
+
+.console-input {
+    width: 100% !important;
+}
+
+.delete-server-popup {
+    height: min-content;
+    width: 40%;
+    border-radius: 10px !important;
 }
