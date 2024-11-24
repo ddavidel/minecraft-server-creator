@@ -84,7 +84,7 @@ def server_detail(uuid: str):
         ).classes("drawer-button")
         ui.button(
             "Edit server properties",
-            on_click=None,
+            on_click=lambda x: ui.navigate.to(f"/edit/{server.uuid}"),
             icon="edit_note",
         ).classes("drawer-button").bind_enabled_from(
             server,
@@ -162,3 +162,27 @@ def home(header: ui.header, container):
                     ui.icon("splitscreen").style("font-size: 80px;")
                 with ui.row().classes("center-text-horizontal"):
                     ui.label("Seems like you don't have any. Let's create one!")
+
+
+@ui.page("/edit/{uuid}")
+def edit_server_properties(uuid: str):
+    """
+    A page that displays to the user a text editor to edit
+    the server.properties file of a minecraft server
+    """
+    # setup content
+    load_head()
+    header = ui.header().classes("content-header")
+    container = html.section().classes("content")
+
+    server = get_server_by_uuid(uuid=uuid)
+
+    with header:
+        ui.button("", on_click=app.shutdown, icon="close").classes("close-button")
+        ui.button("", on_click=ui.navigate.back, icon="arrow_back_ios_new").classes(
+            "back-button"
+        )
+        ui.label(server.name).style("font-size: 40px;")
+
+    # with container:
+        # ui.editor().bind_value(server, "properties")
