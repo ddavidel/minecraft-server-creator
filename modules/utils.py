@@ -55,7 +55,7 @@ def popup_create_server():
         "dedicated_ram": round(system_ram / 4),
         "version": urls.latest_stable(),
         "jar_type": 0,
-        "address": "",
+        "address": "default",
         "port": 25565,
     }
 
@@ -63,7 +63,7 @@ def popup_create_server():
         caller.disable()
         n = ui.notification(
             message=f"Starting creation of server {settings.get('name')}",
-            timeout=None,
+            timeout=30,
             spinner=True,
             type="info",
         )
@@ -71,14 +71,14 @@ def popup_create_server():
         try:
             server_name = settings.get("name").strip()
             assert server_name != "", "Server name can't be empty"
-            if not settings.get("address"):
-                raise ValueError("Server address can't be empty")
+            # if not settings.get("address"):
+            #     raise ValueError("Server address can't be empty")
 
-            # address is present: check if it is a valid ip address
-            try:
-                ipaddress.IPv4Address(settings.get("address"))
-            except ipaddress.AddressValueError as e:
-                raise ValueError("Invalid IPv4 address") from e
+            # # address is present: check if it is a valid ip address
+            # try:
+            #     ipaddress.IPv4Address(settings.get("address"))
+            # except ipaddress.AddressValueError as e:
+            #     raise ValueError("Invalid IPv4 address") from e
 
             MinecraftServer(settings=settings.copy())
             # Reset settings and name
@@ -87,7 +87,7 @@ def popup_create_server():
                 "dedicated_ram": round(system_ram / 4),
                 "version": urls.latest_stable(),
                 "jar_type": 0,
-                "address": "",
+                "address": "default",
                 "port": 25565,
             }
 
@@ -120,14 +120,15 @@ def popup_create_server():
             ).classes("create-server-input").bind_value_to(
                 server_settings,
                 "name",
-            )
-            ui.input(
-                label="IPv4 Address",
-                validation={"Too long!": lambda value: len(value) < 16},
-            ).classes("create-server-input").bind_value_to(
-                server_settings,
-                "address",
-            )
+            )# .style("width: 100% !important")
+            # ui.input(
+            #     label="IPv4 Address",
+            #     validation={"Too long!": lambda value: len(value) < 16},
+            # ).classes("create-server-input").bind_value_to(
+            #     server_settings,
+            #     "address",
+            # )
+            eula = ui.checkbox("Accept EULA (Required)")
 
         ui.separator()
 
@@ -169,7 +170,7 @@ def popup_create_server():
             cb = ui.button(
                 "Create",
                 icon="add",
-            ).classes("normal-primary-button")
+            ).classes("normal-primary-button").bind_enabled_from(eula, "value")
             cb.on_click(lambda x: _create_server(caller=cb, settings=server_settings))
         return popup
 
@@ -284,17 +285,17 @@ def popup_edit_server(server: MinecraftServer):
         try:
             server.name = server.name.strip()
             assert server.name != "", "Server name can't be empty"
-            if not server.address:
-                raise ValueError("Server address can't be empty")
+            # if not server.address:
+            #     raise ValueError("Server address can't be empty")
 
-            # address is present: check if it is a valid ip address
-            try:
-                ipaddress.IPv4Address(server.address)
-            except ipaddress.AddressValueError as e:
-                raise ValueError("Invalid IPv4 address") from e
+            # # address is present: check if it is a valid ip address
+            # try:
+            #     ipaddress.IPv4Address(server.address)
+            # except ipaddress.AddressValueError as e:
+            #     raise ValueError("Invalid IPv4 address") from e
 
             # validation completed. save new settings.
-            server.save_server()
+            server.save()
 
             # notify user
             caller.enable()
@@ -323,13 +324,14 @@ def popup_edit_server(server: MinecraftServer):
                 label="Server name",
                 validation={"Too long!": lambda value: len(value) < 35},
             ).classes("create-server-input").bind_value(server.settings, "name")
-            ui.input(
-                label="IPv4 Address",
-                validation={"Too long!": lambda value: len(value) < 16},
-            ).classes("create-server-input").bind_value(
-                server.settings,
-                "address",
-            )
+            # ui.input(
+            #     label="IPv4 Address",
+            #     validation={"Too long!": lambda value: len(value) < 16},
+            # ).classes("create-server-input").bind_value(
+            #     server.settings,
+            #     "address",
+            # )
+            ui.checkbox("Accept EULA (Required)", value=True).disable()
 
         ui.separator()
 
@@ -373,4 +375,84 @@ def popup_edit_server(server: MinecraftServer):
                 icon="save",
             ).classes("normal-primary-button")
             cb.on_click(lambda x: _edit_server(caller=cb, server=server))
+        return popup
+
+
+async def write_to_console_and_clean(
+    caller, server: MinecraftServer, command: str = ""
+):
+    """Cleans content of caller after sending input to server"""
+    if command:
+        await server.console_writer(command=command)
+    elif hasattr(caller, "value") and caller.value:
+        await server.console_writer(caller.value)
+        caller.set_value("")
+
+
+def popup_delete_server(server: MinecraftServer):
+    """Create server popup window"""
+
+    async def _delete_server(
+        caller: ui.button, server: MinecraftServer, delete_files: bool
+    ):
+        caller.disable()
+        n = ui.notification(
+            message=f"Deleting server {server.name}",
+            timeout=None,
+            spinner=True,
+            type="info",
+        )
+        await asyncio.sleep(1)
+        try:
+            # delete server
+            server.delete(delete_dir=delete_files)
+
+            # notify user
+            n.spinner = False
+            n.type = "positive"
+            n.message = "Server deleted"
+            await asyncio.sleep(3)
+            n.dismiss()
+            ui.navigate.to("/")
+
+        except Exception as e:
+            caller.enable()
+            n.spinner = False
+            n.type = "negative"
+            n.message = str(e)
+            await asyncio.sleep(3)
+            n.dismiss()
+
+    with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
+        with ui.row():
+            ui.label("Are you sure?").style("font-size: 30px;")
+
+        with ui.row().style("width: 100%;"):
+            ui.label(f"Write '{server.name}' below to confirm").style("opacity: 0.6")
+            with ui.row().style("width: 100%;"):
+                check = ui.input(
+                    "Confirm name",
+                    validation={"Wrong name": lambda value: value == server.name},
+                ).style("width: 100% !important;")
+
+                delete_files = ui.checkbox("Delete server folder")
+
+                delete_btn = (
+                    ui.button("Delete", icon="delete")
+                    .classes("normal-primary-button")
+                    .style(
+                        "background-color: rgb(216, 68, 68) !important; width: 100% !important"
+                    )
+                )
+                delete_btn.bind_enabled_from(
+                    check, "value", backward=lambda value: value == server.name
+                )
+                delete_btn.on_click(
+                    lambda x: _delete_server(
+                        caller=delete_btn,
+                        server=server,
+                        delete_files=delete_files.value,
+                    )
+                )
+
         return popup
