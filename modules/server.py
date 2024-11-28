@@ -213,7 +213,7 @@ class MinecraftServer:
         try:
             cmd = [
                 "java",
-                f"-d{mcssettings.JAVA_BIT_MODEL}",
+                # f"-d{mcssettings.JAVA_BIT_MODEL}",
                 f"-Xmx{self.settings['dedicated_ram']}G",
                 f"-Xms{self.settings['dedicated_ram']}G",
                 "-jar",
@@ -338,7 +338,6 @@ class MinecraftServer:
         print(f"Deleted server {self.uuid}")
 
 
-
 def get_server_by_name(server_name: str) -> MinecraftServer | None:
     """
     Returns server instance found by name.
@@ -358,3 +357,10 @@ def get_server_by_uuid(uuid: str) -> MinecraftServer | None:
         if server.uuid == uuid:
             return server
     return None
+
+
+def full_stop():
+    """Ensures all servers are stopped"""
+    for server in server_list:
+        if server.running and server.process:
+            server.stop()
