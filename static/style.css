@@ -1,7 +1,8 @@
 /* STUFF */
 /* width */
 ::-webkit-scrollbar {
-    width: 0px;
+    width: 2px;
+    height: 2px;
 }
 
 /* Track */
@@ -11,12 +12,12 @@
 
 /* Handle */
 ::-webkit-scrollbar-thumb {
-    background: transparent;
+    background: rgba(255, 255, 255, 0.25);
 }
 
 /* Handle on hover */
 ::-webkit-scrollbar-thumb:hover {
-    background: transparent;
+    background: rgba(255, 255, 255, 0.5);
 }
 
 /* CLASSES */
@@ -192,4 +193,9 @@
     height: min-content;
     width: 40%;
     border-radius: 10px !important;
+}
+
+.properties-editor {
+    width: 100% !important;
+    height: 80% !important;
 }
