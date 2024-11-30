@@ -1,4 +1,5 @@
 """Main"""
+
 import os
 from nicegui import ui, html, app
 
@@ -8,25 +9,21 @@ from modules.pages import (
     home,
 )
 from modules.server import load_servers
-from modules.utils import (
-    load_server_versions
-)
+from modules.utils import load_server_versions
 
 
-app.native.window_args['resizable'] = False
+app.native.window_args["resizable"] = False
 
 
 class Main:
     """Main class"""
+
     def __init__(self):
         """
         Loads stuff.
         IMPORTANT: Order matters.
         """
-        app.add_static_files(
-            "/static",
-            os.path.join(os.getcwd(), "static")
-        )
+        app.add_static_files("/static", os.path.join(os.getcwd(), "static"))
         load_servers()
         load_server_versions()
 
@@ -47,7 +44,10 @@ class Main:
             reload=False,
             title="Minecraft Server Creator",
             dark=True,
-            frameless=True
+            frameless=True,
+            show=False,
         )
 
-Main().run()
+
+if __name__ == "__main__":
+    Main().run()
