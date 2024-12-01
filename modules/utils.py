@@ -7,21 +7,17 @@ import asyncio
 import psutil
 from nicegui import ui
 import requests
-import ipaddress
 import pandas as pd
 
 from modules.server import MinecraftServer
 from config import settings as mcssettings
 
 
-VERSION_LIST_URL = "https://gist.githubusercontent.com/cliffano/77a982a7503669c3e1acb0a0cf6127e9/raw/a36b1e2f05ed3f1d1bbe9a7cf7fd3cfc7cb7a3a8/minecraft-server-jar-downloads.md"
-
-
 server_versions = []
 server_types = {
     0: "Vanilla",
-    1: "Spigot",
-    2: "Forge",
+    # 1: "Spigot",
+    # 2: "Forge",
 }
 vanilla_urls = {}
 spigot_urls = {}
@@ -120,7 +116,7 @@ def popup_create_server():
             ).classes("create-server-input").bind_value_to(
                 server_settings,
                 "name",
-            )# .style("width: 100% !important")
+            )  # .style("width: 100% !important")
             # ui.input(
             #     label="IPv4 Address",
             #     validation={"Too long!": lambda value: len(value) < 16},
@@ -128,7 +124,9 @@ def popup_create_server():
             #     server_settings,
             #     "address",
             # )
-            eula = ui.checkbox("Accept EULA (Required)")
+            eula = ui.checkbox("Accept EULA (Required)").style(
+                "margin-top: 15px !important"
+            )
 
         ui.separator()
 
@@ -167,17 +165,21 @@ def popup_create_server():
             ui.button("Cancel", on_click=popup.close, icon="close").classes(
                 "normal-secondary-button"
             )
-            cb = ui.button(
-                "Create",
-                icon="add",
-            ).classes("normal-primary-button").bind_enabled_from(eula, "value")
+            cb = (
+                ui.button(
+                    "Create",
+                    icon="add",
+                )
+                .classes("normal-primary-button")
+                .bind_enabled_from(eula, "value")
+            )
             cb.on_click(lambda x: _create_server(caller=cb, settings=server_settings))
         return popup
 
 
 def load_server_versions():
     """Loads server versions"""
-    response = requests.get(VERSION_LIST_URL, timeout=10)
+    response = requests.get(mcssettings.VERSION_LIST_URL, timeout=10)
     response.raise_for_status()
     markdown_content = response.text
     # Use pandas to read the Markdown table
@@ -256,6 +258,9 @@ class JarUrl:
 
     def filter_version_list(self, version_list) -> list:
         """filter server list using filter from settings"""
+        if mcssettings.JAR_VERSIONS_FILTER == "none":
+            return version_list
+
         if mcssettings.JAR_VERSIONS_FILTER == "stable":
             # only stable versions
             filtered_list = []
@@ -331,7 +336,9 @@ def popup_edit_server(server: MinecraftServer):
             #     server.settings,
             #     "address",
             # )
-            ui.checkbox("Accept EULA (Required)", value=True).disable()
+            ui.checkbox("Accept EULA (Required)", value=True).style(
+                "margin-top: 15px !important"
+            ).disable()
 
         ui.separator()
 
@@ -437,12 +444,14 @@ def popup_delete_server(server: MinecraftServer):
 
                 delete_files = ui.checkbox("Delete server folder")
 
+            with ui.row().style("width: 100%;").style("flex-grow: 1;"):
+                ui.button("Back", on_click=popup.close, icon="close").classes(
+                    "normal-secondary-button"
+                )
                 delete_btn = (
                     ui.button("Delete", icon="delete")
                     .classes("normal-primary-button")
-                    .style(
-                        "background-color: rgb(216, 68, 68) !important; width: 100% !important"
-                    )
+                    .style("background-color: rgb(216, 68, 68) !important;")
                 )
                 delete_btn.bind_enabled_from(
                     check, "value", backward=lambda value: value == server.name

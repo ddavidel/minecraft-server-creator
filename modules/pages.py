@@ -10,7 +10,7 @@ from modules.utils import (
     popup_create_server,
     popup_edit_server,
     write_to_console_and_clean,
-    popup_delete_server
+    popup_delete_server,
 )
 from modules.server import MinecraftServer, server_list, get_server_by_uuid
 
@@ -84,7 +84,7 @@ def server_detail(uuid: str):
         ).classes("drawer-button")
         ui.button(
             "Edit server properties",
-            on_click=None,
+            on_click=lambda x: ui.navigate.to(f"/edit/{server.uuid}"),
             icon="edit_note",
         ).classes("drawer-button").bind_enabled_from(
             server,
@@ -103,12 +103,16 @@ def server_detail(uuid: str):
         server.log = log
 
         with ui.row().style("width: 100%;"):
-            console_input = ui.input("Write command").on(
-                "keydown.enter",
-                handler=lambda x: write_to_console_and_clean(
-                    caller=console_input, server=server
-                ),
-            ).classes("console-input")
+            console_input = (
+                ui.input("Write command")
+                .on(
+                    "keydown.enter",
+                    handler=lambda x: write_to_console_and_clean(
+                        caller=console_input, server=server
+                    ),
+                )
+                .classes("console-input")
+            )
 
 
 def create_server_card(server: MinecraftServer):
@@ -162,3 +166,33 @@ def home(header: ui.header, container):
                     ui.icon("splitscreen").style("font-size: 80px;")
                 with ui.row().classes("center-text-horizontal"):
                     ui.label("Seems like you don't have any. Let's create one!")
+
+
+@ui.page("/edit/{uuid}")
+def edit_server_properties(uuid: str):
+    """
+    A page that displays to the user a text editor to edit
+    the server.properties file of a minecraft server
+    """
+    # setup content
+    load_head()
+    header = ui.header().classes("content-header")
+    container = html.section().classes("content")
+
+    server = get_server_by_uuid(uuid=uuid)
+    server.load_server_properties()
+
+    with header.style("background-color: rgba(18, 18, 18, 0.75)"):
+        ui.button("", on_click=app.shutdown, icon="close").classes("close-button")
+        ui.button("", on_click=ui.navigate.back, icon="arrow_back_ios_new").classes(
+            "back-button"
+        )
+        ui.label(server.name).style("font-size: 40px;")
+        ui.button("Save", icon="save").classes("normal-primary-button").style(
+            "width: 130px;margin-top: 15px !important"
+        )  # TODO: handle button click
+
+    with container:
+        editor = ui.json_editor(
+            {"content": {"json": server.server_properties}}
+        ).classes("properties-editor")

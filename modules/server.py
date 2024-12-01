@@ -49,6 +49,7 @@ class MinecraftServer:
     settings = binding.BindableProperty()
 
     def __init__(self, settings: dict, uuid: str = ""):
+        # Setup attributes
         self.name = settings.get("name")
         self.settings = settings or {}
         self.running = False
@@ -56,6 +57,7 @@ class MinecraftServer:
         self.stopping = False
         self.process = None
         self.log = None
+        self.server_properties = {}
 
         if not uuid:
             self._create_server()
@@ -131,9 +133,7 @@ class MinecraftServer:
     @property
     def has_server_properties(self) -> bool:
         """Returns true if server.properties is in server dir"""
-        return os.path.exists(
-            os.path.join(self.server_path, "server.properties")
-        )
+        return os.path.exists(os.path.join(self.server_path, "server.properties"))
 
     def _create_server(self):
         """
@@ -156,7 +156,11 @@ class MinecraftServer:
         self._download_jar()
 
         # accept eula
-        with open(os.path.join(self.settings["folder_path"], "eula.txt"), "w") as eula:
+        with open(
+            os.path.join(self.settings["folder_path"], "eula.txt"),
+            mode="w",
+            encoding="utf-8",
+        ) as eula:
             eula.write("eula=true")
 
         # save into server.json
@@ -213,7 +217,7 @@ class MinecraftServer:
         try:
             cmd = [
                 "java",
-                f"-d{mcssettings.JAVA_BIT_MODEL}",
+                # f"-d{mcssettings.JAVA_BIT_MODEL}",
                 f"-Xmx{self.settings['dedicated_ram']}G",
                 f"-Xms{self.settings['dedicated_ram']}G",
                 "-jar",
@@ -233,9 +237,6 @@ class MinecraftServer:
             # Start tasks for reading output and taking input
             output_task = asyncio.create_task(self._console_reader())
             # input_task = asyncio.create_task(self.console_writer())
-
-            self.running = True
-            self.starting = False
 
             # Wait for the server process to finish
             await self.process.wait()
@@ -259,6 +260,8 @@ class MinecraftServer:
         """Stops the server"""
         if self.process and self.running:
             print("Stopping the server...")
+            self.running = False
+            self.stopping = True
             try:
                 # Send the 'stop' command to the server
                 if self.process.stdin:
@@ -295,6 +298,9 @@ class MinecraftServer:
     async def _console_reader(self) -> str:
         """reads and prints console output"""
         try:
+            line = await self.process.stdout.readline()
+            self.starting = False
+            self.running = True
             while self.running:
                 line = await self.process.stdout.readline()
                 if self.log and line:
@@ -315,7 +321,7 @@ class MinecraftServer:
                     elif os.path.isdir(item_path):
                         shutil.rmtree(item_path)
                 except Exception as e:
-                    print('Failed to delete %s: %s' % (item_path, e))
+                    print(f"Failed to delete {item_path}: {e}")
             # remove server dir
             shutil.rmtree(self.server_path)
 
@@ -337,6 +343,29 @@ class MinecraftServer:
 
         print(f"Deleted server {self.uuid}")
 
+    def load_server_properties(self):
+        """Loads server.properties file"""
+        if self.has_server_properties:
+            with open(
+                os.path.join(self.server_path, "server.properties"),
+                mode="r",
+                encoding="utf-8",
+            ) as properties:
+                for line in properties:
+                    if line.strip() and not line.startswith("#"):
+                        key, value = line.strip().split("=", 1)
+                        self.server_properties[key] = value
+
+    def save_server_properties(self):
+        """Saves server.properties file"""
+        raise NotImplementedError()
+        if self.has_server_properties and self.server_properties is not None:
+            with open(
+                os.path.join(self.server_path, "server.properties"),
+                mode="w",
+                encoding="utf-8",
+            ) as properties:
+                self.server_properties = properties.readlines()
 
 
 def get_server_by_name(server_name: str) -> MinecraftServer | None:
@@ -358,3 +387,10 @@ def get_server_by_uuid(uuid: str) -> MinecraftServer | None:
         if server.uuid == uuid:
             return server
     return None
+
+
+def full_stop():
+    """Ensures all servers are stopped"""
+    for server in server_list:
+        if server.running and server.process:
+            server.stop()
