@@ -238,9 +238,6 @@ class MinecraftServer:
             output_task = asyncio.create_task(self._console_reader())
             # input_task = asyncio.create_task(self.console_writer())
 
-            self.running = True
-            self.starting = False
-
             # Wait for the server process to finish
             await self.process.wait()
 
@@ -263,6 +260,8 @@ class MinecraftServer:
         """Stops the server"""
         if self.process and self.running:
             print("Stopping the server...")
+            self.running = False
+            self.stopping = True
             try:
                 # Send the 'stop' command to the server
                 if self.process.stdin:
@@ -299,6 +298,9 @@ class MinecraftServer:
     async def _console_reader(self) -> str:
         """reads and prints console output"""
         try:
+            line = await self.process.stdout.readline()
+            self.starting = False
+            self.running = True
             while self.running:
                 line = await self.process.stdout.readline()
                 if self.log and line:
