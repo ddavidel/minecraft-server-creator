@@ -1,2 +1,2 @@
-# minecraft-server-creator
-Tool for creating minecraft server in a few steps
+# MCSC - Minecraft Server Creator
+Tool for creating minecraft servers.
