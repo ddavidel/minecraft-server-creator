@@ -312,36 +312,40 @@ class MinecraftServer:
 
     def delete(self, delete_dir: bool = False):
         """Deletes the server from servers.json"""
-        if delete_dir:
-            for item in os.listdir(self.server_path):
-                item_path = os.path.join(self.server_path, item)
-                try:
-                    if os.path.isfile(item_path) or os.path.islink(item_path):
-                        os.unlink(item_path)
-                    elif os.path.isdir(item_path):
-                        shutil.rmtree(item_path)
-                except Exception as e:
-                    print(f"Failed to delete {item_path}: {e}")
-            # remove server dir
-            shutil.rmtree(self.server_path)
+        if not self.running and not self.process:
+            if delete_dir:
+                for item in os.listdir(self.server_path):
+                    item_path = os.path.join(self.server_path, item)
+                    try:
+                        if os.path.isfile(item_path) or os.path.islink(item_path):
+                            os.unlink(item_path)
+                        elif os.path.isdir(item_path):
+                            shutil.rmtree(item_path)
+                    except Exception as e:
+                        print(f"Failed to delete {item_path}: {e}")
+                # remove server dir
+                shutil.rmtree(self.server_path)
 
-        # remove from server_list
-        assert self in server_list, "Invalid server"
-        server_list.remove(self)
+            # remove from server_list
+            assert self in server_list, "Invalid server"
+            server_list.remove(self)
 
-        # remove from global_settings
-        assert global_settings[self.uuid], "Invalid server"
-        del global_settings[self.uuid]
+            # remove from global_settings
+            assert global_settings[self.uuid], "Invalid server"
+            del global_settings[self.uuid]
 
-        # update settings
-        try:
-            self._save_settings()
+            # update settings
+            try:
+                self._save_settings()
 
-        except Exception as e:
-            print(f"Can't delete server: {e}")
-            raise
+            except Exception as e:
+                print(f"Can't delete server: {e}")
+                raise
 
-        print(f"Deleted server {self.uuid}")
+            print(f"Deleted server {self.uuid}")
+
+        else:
+            raise Exception("Can't delete the server while it's running.")
 
     def load_server_properties(self):
         """Loads server.properties file"""
