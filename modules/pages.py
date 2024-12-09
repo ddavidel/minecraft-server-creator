@@ -155,6 +155,8 @@ def home(header: ui.header, container):
     with container.classes("content"):
         with ui.row(align_items="center").style("width: 100%"):
             if server_list:
+                if "content-empty-state" in container.classes:
+                    container.classes.remove("content-empty-state")
                 container.classes("content")
                 for server in server_list:
                     create_server_card(server=server)
