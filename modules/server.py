@@ -9,7 +9,7 @@ import shutil
 from uuid import uuid4
 import numpy as np
 import requests
-from nicegui import binding
+from nicegui import binding, ui
 
 from config import settings as mcssettings
 
@@ -360,16 +360,38 @@ class MinecraftServer:
                         key, value = line.strip().split("=", 1)
                         self.server_properties[key] = value
 
-    def save_server_properties(self):
-        """Saves server.properties file"""
-        raise NotImplementedError()
-        if self.has_server_properties and self.server_properties is not None:
+    def save_server_properties(self, editor: ui.editor) -> bool:
+        """
+        Saves server.properties file
+        Returns True if saved otherwise False
+        """
+        if self.has_server_properties and editor.content.get("json"):
+            self.server_properties = editor.content.get("json")
+
+            # Actually save server.properties file
+            # It's not a json, rows are NAME=VALUE
             with open(
                 os.path.join(self.server_path, "server.properties"),
                 mode="w",
                 encoding="utf-8",
             ) as properties:
-                self.server_properties = properties.readlines()
+                for setting, value in self.server_properties.items():
+                    properties.write(f"{setting}={value}\n")
+
+                properties.flush()
+                properties.close()
+
+            print(f"{self.uuid} properties saved")
+            return True
+
+        elif self.has_server_properties and editor.content.get("text"):
+            raise NotImplementedError("Editing in 'text' mode is currently disabled")
+            # The ugly
+            # editor.content.get("text").replace("\n", "").replace('"', "").replace(
+            #     "{", ""
+            # ).replace("}", "").split(",")[0].strip().split(": ")
+
+        return False
 
 
 def get_server_by_name(server_name: str) -> MinecraftServer | None:
