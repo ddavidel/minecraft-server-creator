@@ -2,6 +2,7 @@
 Pages
 """
 
+import asyncio
 from nicegui import ui, html, app
 
 from config import settings as mcssettings
@@ -184,17 +185,36 @@ def edit_server_properties(uuid: str):
     server = get_server_by_uuid(uuid=uuid)
     server.load_server_properties()
 
+    async def _saving(server: MinecraftServer, editor: ui.editor):
+        await asyncio.sleep(0.5)
+        try:
+            saved = server.save_server_properties(editor=editor)
+            if saved:
+                n = ui.notification(
+                    message="Saved",
+                    spinner=False,
+                    type="positive"
+                )
+                await asyncio.sleep(3)
+                n.dismiss()
+
+        except Exception as e:
+            n = ui.notification(
+                message=str(e),
+                type="negative",
+                spinner=False,
+            )
+            await asyncio.sleep(3)
+            n.dismiss()
+
     with header.style("background-color: rgba(18, 18, 18, 0.75)"):
         ui.button("", on_click=app.shutdown, icon="close").classes("close-button")
         ui.button("", on_click=ui.navigate.back, icon="arrow_back_ios_new").classes(
             "back-button"
         )
         ui.label(server.name).style("font-size: 40px;")
-        ui.button("Save", icon="save").classes("normal-primary-button").style(
-            "width: 130px;margin-top: 15px !important"
-        )  # TODO: handle button click
 
     with container:
-        editor = ui.json_editor(
-            {"content": {"json": server.server_properties}}
-        ).classes("properties-editor")
+        ui.json_editor({"content": {"json": server.server_properties}}).classes(
+            "properties-editor"
+        ).on_change(lambda editor: _saving(server=server, editor=editor))
