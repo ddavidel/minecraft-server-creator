@@ -83,14 +83,6 @@ class MinecraftServer:
         return "Running" if self.running else "Stopped"
 
     @property
-    def properties(self):
-        """
-        Loads server.properties file from server's directory
-        and builds a dictionary
-        """
-        return {}
-
-    @property
     def address(self) -> str:
         """ip address"""
         return self.settings.get("address", "undefined")
@@ -415,8 +407,8 @@ def get_server_by_uuid(uuid: str) -> MinecraftServer | None:
     return None
 
 
-def full_stop():
+async def full_stop():
     """Ensures all servers are stopped"""
     for server in server_list:
         if server.running and server.process:
-            server.stop()
+            await server.stop()
