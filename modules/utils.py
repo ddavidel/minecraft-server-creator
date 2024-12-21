@@ -5,11 +5,11 @@ Utils
 import io
 import asyncio
 import psutil
-from nicegui import ui
+from nicegui import ui, app
 import requests
 import pandas as pd
 
-from modules.server import MinecraftServer
+from modules.server import MinecraftServer, full_stop
 from config import settings as mcssettings
 
 
@@ -25,7 +25,7 @@ spigot_urls = {}
 urls = None  # pylint: disable=invalid-name
 
 
-def _get_system_total_ram():
+def get_system_total_ram():
     """Total ram on device in GB"""
     return round(psutil.virtual_memory().total / (1024**3))
 
@@ -42,10 +42,37 @@ async def send_notification(
     ui.notification(message=msg, timeout=timeout, spinner=spinner, type=severity)
 
 
+async def stop_processes():
+    """
+    Shuts down the app.
+    This is a ugly way to close the app but it prevents processes from
+    still running in the background (a problem i was having).
+    """
+    await full_stop()
+
+    tasks = {t for t in asyncio.all_tasks() if t is not asyncio.current_task()}
+    for task in tasks:
+        task.cancel()
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception) and not isinstance(
+            result, asyncio.CancelledError
+        ):
+            print(f"Exception during shutdown: {result}")
+
+    app.shutdown()
+
+
+def shutdown():
+    """Shuts down the app, stopping all servers and processes"""
+    asyncio.create_task(stop_processes())
+
+
 def popup_create_server():
     """Create server popup window"""
     # local variables
-    system_ram = _get_system_total_ram()
+    system_ram = get_system_total_ram()
     server_settings = {
         "name": "",
         "dedicated_ram": round(system_ram / 4),
@@ -276,7 +303,7 @@ class JarUrl:
 def popup_edit_server(server: MinecraftServer):
     """Create server popup window"""
     # bind setting to inputs
-    system_ram = _get_system_total_ram()
+    system_ram = get_system_total_ram()
 
     async def _edit_server(caller: ui.button, server: MinecraftServer):
         caller.disable()
