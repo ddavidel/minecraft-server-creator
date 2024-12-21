@@ -19,8 +19,6 @@ server_types = {
     # 1: "Spigot",
     # 2: "Forge",
 }
-vanilla_urls = {}
-spigot_urls = {}
 
 urls = None  # pylint: disable=invalid-name
 
@@ -230,7 +228,7 @@ def load_server_versions():
     del df["Minecraft Version"]
 
     vanilla_dict = dict(zip(df.index, df["Server Jar Download URL"]))
-    global server_versions, urls  # pylint:disable=global-statement
+    global urls  # pylint:disable=global-statement
     urls = JarUrl()
     urls.set_urls(jar_type=0, data_dict=vanilla_dict)
 
