@@ -12,6 +12,7 @@ from modules.utils import (
     popup_edit_server,
     write_to_console_and_clean,
     popup_delete_server,
+    shutdown
 )
 from modules.server import MinecraftServer, server_list, get_server_by_uuid
 
@@ -27,7 +28,7 @@ def build_base_window(header: ui.header):
     """Builds base window for app"""
     load_head()
     with header:
-        ui.button("", on_click=app.shutdown, icon="close").classes("close-button")
+        ui.button("", on_click=shutdown, icon="close").classes("close-button")
 
 
 def build_drawer():
@@ -57,7 +58,7 @@ def server_detail(uuid: str):
     server = get_server_by_uuid(uuid=uuid)
 
     with header:
-        ui.button("", on_click=app.shutdown, icon="close").classes("close-button")
+        ui.button("", on_click=shutdown, icon="close").classes("close-button")
         ui.button("", on_click=ui.navigate.back, icon="arrow_back_ios_new").classes(
             "back-button"
         )
@@ -208,7 +209,7 @@ def edit_server_properties(uuid: str):
             n.dismiss()
 
     with header.style("background-color: rgba(18, 18, 18, 0.75)"):
-        ui.button("", on_click=app.shutdown, icon="close").classes("close-button")
+        ui.button("", on_click=shutdown, icon="close").classes("close-button")
         ui.button("", on_click=ui.navigate.back, icon="arrow_back_ios_new").classes(
             "back-button"
         )
