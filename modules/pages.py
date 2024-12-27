@@ -12,9 +12,11 @@ from modules.utils import (
     popup_edit_server,
     write_to_console_and_clean,
     popup_delete_server,
-    shutdown
+    shutdown,
+    popup_update_app,
 )
 from modules.server import MinecraftServer, server_list, get_server_by_uuid
+from update import check_for_updates
 
 
 def load_head():
@@ -45,6 +47,23 @@ def build_drawer():
             on_click=home.refresh,
             icon="space_dashboard",
         ).classes("drawer-button")
+
+        update_popup = popup_update_app()
+        if check_for_updates():
+            update_popup.open()
+            ui.button(
+                "Update available",
+                on_click=update_popup.open,
+                icon="download",
+            ).classes("drawer-button").style(
+                "background-color: rgb(255, 152, 0) !important"
+            )
+            ui.notification(
+                message="Update available",
+                timeout=30,
+                spinner=False,
+                type="info",
+            )
 
 
 @ui.page("/server_detail/{uuid}")
