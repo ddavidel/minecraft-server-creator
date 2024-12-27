@@ -70,15 +70,17 @@ class Update:
             # Update status
             self.status = "Starting update"
             # Backup the app
-            self.create_backup()
+            # self.create_backup()
 
             # Update update_files.py
-            self.replace_file(filename="update_files.py", path="/config")
+            self.replace_file(filename="update_files.py", path="config")
             update_files = importlib.import_module("config.update_files").UPDATE_FILES
 
             # Update the app
             for file in update_files:
-                self.replace_file(filename=file["filename"], path=file["path"])
+                self.replace_file(
+                    filename=file["filename"].strip(), path=file["path"].strip()
+                )
 
             self.status = "Update complete"
 
@@ -103,7 +105,7 @@ class Update:
         content = self.download_file(filename=filename, path=path)
 
         # Overwrite file
-        with open(filename, "wb") as file:
+        with open(os.path.join(self.app_dir, path, filename), "wb") as file:
             file.write(content)
             file.flush()
 
