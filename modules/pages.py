@@ -36,7 +36,7 @@ def build_base_window(header: ui.header):
 def build_drawer():
     """Builds left drawer"""
     with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
-        ui.label("MCServerCreator").style("font-size: 35px")
+        ui.image('/static/logo.png')
         ui.button(
             "Create Server",
             on_click=popup_create_server().open,
