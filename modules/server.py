@@ -27,6 +27,8 @@ def load_servers():
         with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
             file.write("{}")
             file.flush()
+
+        os.makedirs("servers", exist_ok=True)
         return
 
     with open(mcssettings.SERVERS_JSON_PATH, "r", encoding="utf-8") as file:
