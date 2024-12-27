@@ -12,8 +12,11 @@ from modules.utils import (
     popup_edit_server,
     write_to_console_and_clean,
     popup_delete_server,
+    shutdown,
+    popup_update_app,
 )
 from modules.server import MinecraftServer, server_list, get_server_by_uuid
+from update import check_for_updates
 
 
 def load_head():
@@ -27,13 +30,13 @@ def build_base_window(header: ui.header):
     """Builds base window for app"""
     load_head()
     with header:
-        ui.button("", on_click=app.shutdown, icon="close").classes("close-button")
+        ui.button("", on_click=shutdown, icon="close").classes("close-button")
 
 
 def build_drawer():
     """Builds left drawer"""
     with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
-        ui.label("MCServerCreator").style("font-size: 35px")
+        ui.image('/static/logo.png')
         ui.button(
             "Create Server",
             on_click=popup_create_server().open,
@@ -44,6 +47,23 @@ def build_drawer():
             on_click=home.refresh,
             icon="space_dashboard",
         ).classes("drawer-button")
+
+        update_popup = popup_update_app()
+        if check_for_updates():
+            update_popup.open()
+            ui.button(
+                "Update available",
+                on_click=update_popup.open,
+                icon="download",
+            ).classes("drawer-button").style(
+                "background-color: rgb(255, 152, 0) !important"
+            )
+            ui.notification(
+                message="Update available",
+                timeout=30,
+                spinner=False,
+                type="info",
+            )
 
 
 @ui.page("/server_detail/{uuid}")
@@ -57,7 +77,7 @@ def server_detail(uuid: str):
     server = get_server_by_uuid(uuid=uuid)
 
     with header:
-        ui.button("", on_click=app.shutdown, icon="close").classes("close-button")
+        ui.button("", on_click=shutdown, icon="close").classes("close-button")
         ui.button("", on_click=ui.navigate.back, icon="arrow_back_ios_new").classes(
             "back-button"
         )
@@ -208,7 +228,7 @@ def edit_server_properties(uuid: str):
             n.dismiss()
 
     with header.style("background-color: rgba(18, 18, 18, 0.75)"):
-        ui.button("", on_click=app.shutdown, icon="close").classes("close-button")
+        ui.button("", on_click=shutdown, icon="close").classes("close-button")
         ui.button("", on_click=ui.navigate.back, icon="arrow_back_ios_new").classes(
             "back-button"
         )

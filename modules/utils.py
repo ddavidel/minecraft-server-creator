@@ -5,12 +5,13 @@ Utils
 import io
 import asyncio
 import psutil
-from nicegui import ui
+from nicegui import ui, app
 import requests
 import pandas as pd
 
-from modules.server import MinecraftServer
+from modules.server import MinecraftServer, full_stop
 from config import settings as mcssettings
+from update import Update
 
 
 server_versions = []
@@ -19,13 +20,11 @@ server_types = {
     # 1: "Spigot",
     # 2: "Forge",
 }
-vanilla_urls = {}
-spigot_urls = {}
 
 urls = None  # pylint: disable=invalid-name
 
 
-def _get_system_total_ram():
+def get_system_total_ram():
     """Total ram on device in GB"""
     return round(psutil.virtual_memory().total / (1024**3))
 
@@ -42,10 +41,37 @@ async def send_notification(
     ui.notification(message=msg, timeout=timeout, spinner=spinner, type=severity)
 
 
+async def stop_processes():
+    """
+    Shuts down the app.
+    This is a ugly way to close the app but it prevents processes from
+    still running in the background (a problem i was having).
+    """
+    await full_stop()
+
+    tasks = {t for t in asyncio.all_tasks() if t is not asyncio.current_task()}
+    for task in tasks:
+        task.cancel()
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception) and not isinstance(
+            result, asyncio.CancelledError
+        ):
+            print(f"Exception during shutdown: {result}")
+
+    app.shutdown()
+
+
+def shutdown():
+    """Shuts down the app, stopping all servers and processes"""
+    asyncio.create_task(stop_processes())
+
+
 def popup_create_server():
     """Create server popup window"""
     # local variables
-    system_ram = _get_system_total_ram()
+    system_ram = get_system_total_ram()
     server_settings = {
         "name": "",
         "dedicated_ram": round(system_ram / 4),
@@ -203,7 +229,7 @@ def load_server_versions():
     del df["Minecraft Version"]
 
     vanilla_dict = dict(zip(df.index, df["Server Jar Download URL"]))
-    global server_versions, urls  # pylint:disable=global-statement
+    global urls  # pylint:disable=global-statement
     urls = JarUrl()
     urls.set_urls(jar_type=0, data_dict=vanilla_dict)
 
@@ -276,7 +302,7 @@ class JarUrl:
 def popup_edit_server(server: MinecraftServer):
     """Create server popup window"""
     # bind setting to inputs
-    system_ram = _get_system_total_ram()
+    system_ram = get_system_total_ram()
 
     async def _edit_server(caller: ui.button, server: MinecraftServer):
         caller.disable()
@@ -464,4 +490,35 @@ def popup_delete_server(server: MinecraftServer):
                     )
                 )
 
+        return popup
+
+
+def popup_update_app():
+    """Update app popup window"""
+    update = Update()
+
+    async def _update_app():
+        asyncio.create_task(update.run())
+
+    with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
+        with ui.row():
+            ui.label("Update Available").style("font-size: 30px;")
+
+        with ui.row().style("width: 100%;"):
+            ui.label(
+                "A new version of the app is available. Do you want to update now?"
+            ).style("opacity: 0.6")
+
+            with ui.row().style("width: 100%;"):
+                ui.label("").bind_text_from(update, "status")
+
+            with ui.row().style("width: 100%;").style("flex-grow: 1;"):
+                ui.button("Later", on_click=popup.close, icon="close").classes(
+                    "normal-secondary-button"
+                )
+                update_btn = (
+                    ui.button("Update Now", icon="download")
+                    .classes("normal-primary-button")
+                    .on_click(_update_app)
+                )
         return popup

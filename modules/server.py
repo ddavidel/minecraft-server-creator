@@ -27,6 +27,8 @@ def load_servers():
         with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
             file.write("{}")
             file.flush()
+
+        os.makedirs("servers", exist_ok=True)
         return
 
     with open(mcssettings.SERVERS_JSON_PATH, "r", encoding="utf-8") as file:
@@ -81,14 +83,6 @@ class MinecraftServer:
                 return "Stopping..."
 
         return "Running" if self.running else "Stopped"
-
-    @property
-    def properties(self):
-        """
-        Loads server.properties file from server's directory
-        and builds a dictionary
-        """
-        return {}
 
     @property
     def address(self) -> str:
@@ -415,8 +409,8 @@ def get_server_by_uuid(uuid: str) -> MinecraftServer | None:
     return None
 
 
-def full_stop():
+async def full_stop():
     """Ensures all servers are stopped"""
     for server in server_list:
         if server.running and server.process:
-            server.stop()
+            await server.stop()
