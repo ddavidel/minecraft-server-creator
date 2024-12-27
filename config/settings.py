@@ -3,6 +3,13 @@
 import os
 
 
+# MISC APP SETTINGS
+VERSION_FILENAME = "VERSION.txt"
+GITHUB_REPO = "ddavidel/minecraft-server-creator"
+UPDATE_BRANCH = "develop"  # "main", "develop"
+GITHUB_FILE_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/refs/heads/{UPDATE_BRANCH}/{VERSION_FILENAME}"
+BACKUP_DIR = "backups"
+
 # SERVERS SETTINGS
 SERVERS_JSON_PATH = os.path.join(os.getcwd(), "config", "servers.json")
 JAR_VERSIONS_FILTER = "stable"  # "stable", "none"
