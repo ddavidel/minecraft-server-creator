@@ -321,13 +321,13 @@ class MinecraftServer:
                 # remove server dir
                 shutil.rmtree(self.server_path)
 
-        # remove from server_list
-        assert self in server_list, _("Invalid server")
-        server_list.remove(self)
+            # remove from server_list
+            assert self in server_list, _("Invalid server")
+            server_list.remove(self)
 
-        # remove from global_settings
-        assert global_settings[self.uuid], _("Invalid server")
-        del global_settings[self.uuid]
+            # remove from global_settings
+            assert global_settings[self.uuid], _("Invalid server")
+            del global_settings[self.uuid]
 
             # update settings
             try:
