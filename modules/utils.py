@@ -11,6 +11,7 @@ import pandas as pd
 
 from modules.server import MinecraftServer
 from config import settings as mcssettings
+from modules.translations import translate as _
 
 
 server_versions = []
@@ -58,7 +59,7 @@ def popup_create_server():
     async def _create_server(caller: ui.button, settings: dict):
         caller.disable()
         n = ui.notification(
-            message=f"Starting creation of server {settings.get('name')}",
+            message=_("Starting creation of server {name}", name=settings.get('name')),
             timeout=30,
             spinner=True,
             type="info",
@@ -66,7 +67,7 @@ def popup_create_server():
         await asyncio.sleep(1)
         try:
             server_name = settings.get("name").strip()
-            assert server_name != "", "Server name can't be empty"
+            assert server_name != "", _("Server name can't be empty")
             # if not settings.get("address"):
             #     raise ValueError("Server address can't be empty")
 
@@ -91,7 +92,7 @@ def popup_create_server():
             caller.enable()
             n.spinner = False
             n.type = "positive"
-            n.message = "Server created!"
+            n.message = _("Server created!")
             await asyncio.sleep(3)
             n.dismiss()
 
@@ -107,11 +108,11 @@ def popup_create_server():
 
     with ui.dialog() as popup, ui.card().classes("create-server-popup"):
         with ui.row():
-            ui.label("New Server").style("font-size: 30px;")
+            ui.label(_("New Server")).style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
             ui.input(
-                label="Server name",
+                label=_("Server name"),
                 validation={"Too long!": lambda value: len(value) < 35},
             ).classes("create-server-input").bind_value_to(
                 server_settings,
@@ -124,14 +125,14 @@ def popup_create_server():
             #     server_settings,
             #     "address",
             # )
-            eula = ui.checkbox("Accept EULA (Required)").style(
+            eula = ui.checkbox(_("Accept EULA (Required)")).style(
                 "margin-top: 15px !important"
             )
 
         ui.separator()
 
-        ui.label("Dedicated RAM").style("font-size: 30px;")
-        ui.label(f"Suggested for this device: {round(system_ram/4)}GB").style(
+        ui.label(_("Dedicated RAM")).style("font-size: 30px;")
+        ui.label(_("Suggested for this device: {value} GB", value=round(system_ram/4))).style(
             "opacity: 0.6"
         )
         with ui.row().style("width: 100%; margin-top: 10px;"):
@@ -149,25 +150,25 @@ def popup_create_server():
             ui.label(f"{system_ram} GB")
 
         ui.separator()
-        ui.label("Other settings").style("font-size: 30px;")
+        ui.label(_("Other settings")).style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
-            ui.select(server_types, with_input=True, label="Server Type").bind_value(
+            ui.select(server_types, with_input=True, label=_("Server Type")).bind_value(
                 server_settings, "jar_type"
             ).classes("create-server-input")
-            ui.select(server_versions, with_input=True, label="Server Version").classes(
+            ui.select(server_versions, with_input=True, label=_("Server Version")).classes(
                 "create-server-input"
             ).bind_value(server_settings, "version")
 
         ui.separator()
 
         with ui.row().style("width: 100%;").style("flex-grow: 1;"):
-            ui.button("Cancel", on_click=popup.close, icon="close").classes(
+            ui.button(_("Cancel"), on_click=popup.close, icon="close").classes(
                 "normal-secondary-button"
             )
             cb = (
                 ui.button(
-                    "Create",
+                    _("Create"),
                     icon="add",
                 )
                 .classes("normal-primary-button")
@@ -231,7 +232,7 @@ class JarUrl:
         if jar_type == 0:
             # vanilla url
             if not self.vanilla_urls.get(version):
-                raise ValueError("Version url not found")
+                raise ValueError(_("Version URL not found"))
             return self.vanilla_urls.get(version)
 
     def update_version_list(self):
@@ -281,7 +282,7 @@ def popup_edit_server(server: MinecraftServer):
     async def _edit_server(caller: ui.button, server: MinecraftServer):
         caller.disable()
         n = ui.notification(
-            message=f"Saving settings of server '{server.name}'",
+            message=_("Saving settings of server '{name}'", name=server.name),
             timeout=None,
             spinner=True,
             type="info",
@@ -289,7 +290,7 @@ def popup_edit_server(server: MinecraftServer):
         await asyncio.sleep(1)
         try:
             server.name = server.name.strip()
-            assert server.name != "", "Server name can't be empty"
+            assert server.name != "", _("Server name can't be empty")
             # if not server.address:
             #     raise ValueError("Server address can't be empty")
 
@@ -306,7 +307,7 @@ def popup_edit_server(server: MinecraftServer):
             caller.enable()
             n.spinner = False
             n.type = "positive"
-            n.message = "Settings saved!"
+            n.message = _("Settings saved!")
             await asyncio.sleep(3)
             n.dismiss()
 
@@ -322,12 +323,12 @@ def popup_edit_server(server: MinecraftServer):
 
     with ui.dialog() as popup, ui.card().classes("create-server-popup"):
         with ui.row():
-            ui.label("Edit Server").style("font-size: 30px;")
+            ui.label(_("Edit Server")).style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
             ui.input(
-                label="Server name",
-                validation={"Too long!": lambda value: len(value) < 35},
+                label=_("Server name"),
+                validation={_("Too long!"): lambda value: len(value) < 35},
             ).classes("create-server-input").bind_value(server.settings, "name")
             # ui.input(
             #     label="IPv4 Address",
@@ -336,14 +337,14 @@ def popup_edit_server(server: MinecraftServer):
             #     server.settings,
             #     "address",
             # )
-            ui.checkbox("Accept EULA (Required)", value=True).style(
+            ui.checkbox(_("Accept EULA (Required)"), value=True).style(
                 "margin-top: 15px !important"
             ).disable()
 
         ui.separator()
 
-        ui.label("Dedicated RAM").style("font-size: 30px;")
-        ui.label(f"Suggested for this device: {round(system_ram/4)}GB").style(
+        ui.label(_("Dedicated RAM")).style("font-size: 30px;")
+        ui.label(_("Suggested for this device: {value} GB", value=round(system_ram/4))).style(
             "opacity: 0.6"
         )
         with ui.row().style("width: 100%; margin-top: 10px;"):
@@ -361,24 +362,24 @@ def popup_edit_server(server: MinecraftServer):
             ui.label(f"{system_ram} GB")
 
         ui.separator()
-        ui.label("Other settings").style("font-size: 30px;")
+        ui.label(_("Other settings")).style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
-            ui.select(server_types, with_input=True, label="Server Type").bind_value(
+            ui.select(server_types, with_input=True, label=_("Server Type")).bind_value(
                 server.settings, "jar_type"
             ).classes("create-server-input").disable()
-            ui.select(server_versions, with_input=True, label="Server Version").classes(
+            ui.select(server_versions, with_input=True, label=_("Server Version")).classes(
                 "create-server-input"
             ).bind_value(server.settings, "version").disable()
 
         ui.separator()
 
         with ui.row().style("width: 100%;").style("flex-grow: 1;"):
-            ui.button("Cancel", on_click=popup.close, icon="close").classes(
+            ui.button(_("Cancel"), on_click=popup.close, icon="close").classes(
                 "normal-secondary-button"
             )
             cb = ui.button(
-                "Save",
+                _("Save"),
                 icon="save",
             ).classes("normal-primary-button")
             cb.on_click(lambda x: _edit_server(caller=cb, server=server))
@@ -404,7 +405,7 @@ def popup_delete_server(server: MinecraftServer):
     ):
         caller.disable()
         n = ui.notification(
-            message=f"Deleting server {server.name}",
+            message=_("Deleting server {name}", name=server.name),
             timeout=None,
             spinner=True,
             type="info",
@@ -417,7 +418,7 @@ def popup_delete_server(server: MinecraftServer):
             # notify user
             n.spinner = False
             n.type = "positive"
-            n.message = "Server deleted"
+            n.message = _("Server deleted")
             await asyncio.sleep(3)
             n.dismiss()
             ui.navigate.to("/")
@@ -432,24 +433,24 @@ def popup_delete_server(server: MinecraftServer):
 
     with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
         with ui.row():
-            ui.label("Are you sure?").style("font-size: 30px;")
+            ui.label(_("Are you sure?")).style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
-            ui.label(f"Write '{server.name}' below to confirm").style("opacity: 0.6")
+            ui.label(_("Write '{name}' below to confirm", name=server.name)).style("opacity: 0.6")
             with ui.row().style("width: 100%;"):
                 check = ui.input(
-                    "Confirm name",
-                    validation={"Wrong name": lambda value: value == server.name},
+                    _("Confirm name"),
+                    validation={_("Wrong name"): lambda value: value == server.name},
                 ).style("width: 100% !important;")
 
-                delete_files = ui.checkbox("Delete server folder")
+                delete_files = ui.checkbox(_("Delete server folder"))
 
             with ui.row().style("width: 100%;").style("flex-grow: 1;"):
-                ui.button("Back", on_click=popup.close, icon="close").classes(
+                ui.button(_("Cancel"), on_click=popup.close, icon="close").classes(
                     "normal-secondary-button"
                 )
                 delete_btn = (
-                    ui.button("Delete", icon="delete")
+                    ui.button(_("Delete"), icon="delete")
                     .classes("normal-primary-button")
                     .style("background-color: rgb(216, 68, 68) !important;")
                 )
