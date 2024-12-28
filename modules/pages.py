@@ -37,7 +37,7 @@ def build_base_window(header: ui.header):
 def build_drawer():
     """Builds left drawer"""
     with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
-        ui.image('/static/logo.png')
+        ui.image("/static/logo.png")
         ui.button(
             _("Create Server"),
             on_click=popup_create_server().open,
@@ -158,7 +158,9 @@ def create_server_card(server: MinecraftServer):
             ui.label("").style(
                 "opacity: 0.6; margin-left: 200px; margin-top: 10px;"
             ).bind_text_from(
-                server, "status", backward=lambda value: _("Status: {value}", value=value)
+                server,
+                "status",
+                backward=lambda value: _("Status: {value}", value=value),
             )
 
 
@@ -211,11 +213,7 @@ def edit_server_properties(uuid: str):
         try:
             saved = server.save_server_properties(editor=editor)
             if saved:
-                n = ui.notification(
-                    message="Saved",
-                    spinner=False,
-                    type="positive"
-                )
+                n = ui.notification(message="Saved", spinner=False, type="positive")
                 await asyncio.sleep(3)
                 n.dismiss()
 

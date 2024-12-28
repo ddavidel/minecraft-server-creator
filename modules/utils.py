@@ -85,7 +85,7 @@ def popup_create_server():
     async def _create_server(caller: ui.button, settings: dict):
         caller.disable()
         n = ui.notification(
-            message=_("Starting creation of server {name}", name=settings.get('name')),
+            message=_("Starting creation of server {name}", name=settings.get("name")),
             timeout=30,
             spinner=True,
             type="info",
@@ -158,9 +158,9 @@ def popup_create_server():
         ui.separator()
 
         ui.label(_("Dedicated RAM")).style("font-size: 30px;")
-        ui.label(_("Suggested for this device: {value} GB", value=round(system_ram/4))).style(
-            "opacity: 0.6"
-        )
+        ui.label(
+            _("Suggested for this device: {value} GB", value=round(system_ram / 4))
+        ).style("opacity: 0.6")
         with ui.row().style("width: 100%; margin-top: 10px;"):
             ui.label("1 GB")
             ui.slider(
@@ -182,9 +182,9 @@ def popup_create_server():
             ui.select(server_types, with_input=True, label=_("Server Type")).bind_value(
                 server_settings, "jar_type"
             ).classes("create-server-input")
-            ui.select(server_versions, with_input=True, label=_("Server Version")).classes(
-                "create-server-input"
-            ).bind_value(server_settings, "version")
+            ui.select(
+                server_versions, with_input=True, label=_("Server Version")
+            ).classes("create-server-input").bind_value(server_settings, "version")
 
         ui.separator()
 
@@ -370,9 +370,9 @@ def popup_edit_server(server: MinecraftServer):
         ui.separator()
 
         ui.label(_("Dedicated RAM")).style("font-size: 30px;")
-        ui.label(_("Suggested for this device: {value} GB", value=round(system_ram/4))).style(
-            "opacity: 0.6"
-        )
+        ui.label(
+            _("Suggested for this device: {value} GB", value=round(system_ram / 4))
+        ).style("opacity: 0.6")
         with ui.row().style("width: 100%; margin-top: 10px;"):
             ui.label("1 GB")
             ui.slider(
@@ -394,9 +394,11 @@ def popup_edit_server(server: MinecraftServer):
             ui.select(server_types, with_input=True, label=_("Server Type")).bind_value(
                 server.settings, "jar_type"
             ).classes("create-server-input").disable()
-            ui.select(server_versions, with_input=True, label=_("Server Version")).classes(
-                "create-server-input"
-            ).bind_value(server.settings, "version").disable()
+            ui.select(
+                server_versions, with_input=True, label=_("Server Version")
+            ).classes("create-server-input").bind_value(
+                server.settings, "version"
+            ).disable()
 
         ui.separator()
 
@@ -462,7 +464,9 @@ def popup_delete_server(server: MinecraftServer):
             ui.label(_("Are you sure?")).style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
-            ui.label(_("Write '{name}' below to confirm", name=server.name)).style("opacity: 0.6")
+            ui.label(_("Write '{name}' below to confirm", name=server.name)).style(
+                "opacity: 0.6"
+            )
             with ui.row().style("width: 100%;"):
                 check = ui.input(
                     _("Confirm name"),
