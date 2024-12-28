@@ -12,6 +12,7 @@ import requests
 from nicegui import binding, ui
 
 from config import settings as mcssettings
+from modules.translations import translate as _
 
 
 server_list = []
@@ -78,9 +79,9 @@ class MinecraftServer:
         """Display-friendly status of the server"""
         if any([self.starting, self.stopping]):
             if self.starting and self.running is False:
-                return "Starting..."
+                return _("Starting")
             if self.stopping and self.running is True:
-                return "Stopping..."
+                return _("Stopping")
 
         return "Running" if self.running else "Stopped"
 
@@ -320,13 +321,13 @@ class MinecraftServer:
                 # remove server dir
                 shutil.rmtree(self.server_path)
 
-            # remove from server_list
-            assert self in server_list, "Invalid server"
-            server_list.remove(self)
+        # remove from server_list
+        assert self in server_list, _("Invalid server")
+        server_list.remove(self)
 
-            # remove from global_settings
-            assert global_settings[self.uuid], "Invalid server"
-            del global_settings[self.uuid]
+        # remove from global_settings
+        assert global_settings[self.uuid], _("Invalid server")
+        del global_settings[self.uuid]
 
             # update settings
             try:

@@ -10,6 +10,9 @@ UPDATE_BRANCH = "main"  # "main", "develop"
 GITHUB_FILE_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/refs/heads/{UPDATE_BRANCH}/{VERSION_FILENAME}"
 BACKUP_DIR = "backups"
 
+# TRANSLATION SETTINGS
+DEFAULT_LANGUAGE = "it"
+
 # SERVERS SETTINGS
 SERVERS_JSON_PATH = os.path.join(os.getcwd(), "config", "servers.json")
 JAR_VERSIONS_FILTER = "stable"  # "stable", "none"
