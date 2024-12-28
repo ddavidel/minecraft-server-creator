@@ -105,7 +105,7 @@ def server_detail(uuid: str):
 
         with ui.row().style("width: 100%;"):
             console_input = (
-                ui.input("Write command")
+                ui.input(_("Write command"))
                 .on(
                     "keydown.enter",
                     handler=lambda x: write_to_console_and_clean(
@@ -137,7 +137,7 @@ def create_server_card(server: MinecraftServer):
             ui.label("").style(
                 "opacity: 0.6; margin-left: 200px; margin-top: 10px;"
             ).bind_text_from(
-                server, "status", backward=lambda value: f"Status: {value}"
+                server, "status", backward=lambda value: _("Status: {value}", value=value)
             )
 
 
