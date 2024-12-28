@@ -15,10 +15,20 @@ except ImportError:
     translations = {}
 
 
-def translate(message: str) -> str:
+def translate(message: str, **kwargs) -> str:
     """
-    Returns corresponding translated message.
-    If no translation is found, original message is returned
+    Returns the corresponding translated message with placeholders replaced.
+    If no translation is found, the original message is returned.
     """
     translated = translations.get(message, message)
-    return translated
+
+    try:
+        return translated.format(**kwargs)
+
+    except KeyError as e:
+        print(f"Warning: Missing placeholder key {e} for message: {message}")
+        raise
+
+    except ValueError as e:
+        print(f"Error: Invalid format in message: {message}. Error: {e}")
+        raise
