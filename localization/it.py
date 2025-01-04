@@ -46,4 +46,5 @@ translations = {
     "Wrong name": "Nome sbagliato",
     "Delete server folder": "Elimina cartella del server",
     "Delete": "Elimina",
+    "Server version can't be empty": "La versione del server non può essere vuota",
 }
