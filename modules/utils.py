@@ -10,8 +10,8 @@ import requests
 import pandas as pd
 
 from modules.server import MinecraftServer, full_stop
-from config import settings as mcssettings
 from modules.translations import translate as _
+from config import settings as mcssettings
 from update import Update
 
 
@@ -19,7 +19,7 @@ server_versions = []
 server_types = {
     0: "Vanilla",
     # 1: "Spigot",
-    # 2: "Forge",
+    2: "Forge",
 }
 
 urls = None  # pylint: disable=invalid-name
@@ -76,7 +76,7 @@ def popup_create_server():
     server_settings = {
         "name": "",
         "dedicated_ram": round(system_ram / 4),
-        "version": urls.latest_stable(),
+        "version": "",
         "jar_type": 0,
         "address": "default",
         "port": 25565,
@@ -92,29 +92,23 @@ def popup_create_server():
         )
         await asyncio.sleep(1)
         try:
-            server_name = settings.get("name").strip()
-            assert server_name != "", _("Server name can't be empty")
-            # if not settings.get("address"):
-            #     raise ValueError("Server address can't be empty")
+            assert settings.get("name", "") != "", _("Server name can't be empty")
+            assert settings.get("version", None), _("Server version can't be empty")
 
-            # # address is present: check if it is a valid ip address
-            # try:
-            #     ipaddress.IPv4Address(settings.get("address"))
-            # except ipaddress.AddressValueError as e:
-            #     raise ValueError("Invalid IPv4 address") from e
-
+            # Initialize server
             MinecraftServer(settings=settings.copy())
+
             # Reset settings and name
             settings = {
                 "name": "",
                 "dedicated_ram": round(system_ram / 4),
-                "version": urls.latest_stable(),
+                "version": "",
                 "jar_type": 0,
                 "address": "default",
                 "port": 25565,
             }
 
-            # notify user
+            # Notify user
             caller.enable()
             n.spinner = False
             n.type = "positive"
@@ -179,12 +173,25 @@ def popup_create_server():
         ui.label(_("Other settings")).style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
-            ui.select(server_types, with_input=True, label=_("Server Type")).bind_value(
-                server_settings, "jar_type"
-            ).classes("create-server-input")
-            ui.select(
-                server_versions, with_input=True, label=_("Server Version")
-            ).classes("create-server-input").bind_value(server_settings, "version")
+            type_select = (
+                ui.select(server_types, with_input=True, label=_("Server Type"))
+                .bind_value(server_settings, "jar_type")
+                .classes("create-server-input")
+            )
+            version_select = (
+                ui.select(
+                    urls.get_versions_for_type(0),
+                    with_input=True,
+                    label=_("Server Version"),
+                )
+                .classes("create-server-input")
+                .bind_value(server_settings, "version")
+            )
+
+            type_select.on(
+                "update:modelValue",
+                lambda x: version_select.set_options(urls.get_versions_for_type(type_select.value)),
+            )
 
         ui.separator()
 
@@ -204,9 +211,9 @@ def popup_create_server():
         return popup
 
 
-def load_server_versions():
-    """Loads server versions"""
-    response = requests.get(mcssettings.VERSION_LIST_URL, timeout=10)
+def _load_vanilla_versions() -> dict:
+    """Loads vanilla versions"""
+    response = requests.get(mcssettings.JAVA_VERSION_LIST_URL, timeout=10)
     response.raise_for_status()
     markdown_content = response.text
     # Use pandas to read the Markdown table
@@ -230,9 +237,36 @@ def load_server_versions():
     del df["Minecraft Version"]
 
     vanilla_dict = dict(zip(df.index, df["Server Jar Download URL"]))
+    return vanilla_dict
+
+
+def _load_spigot_versions() -> dict:
+    """Loads spigot versions"""
+    raise NotImplementedError()
+
+
+def _load_forge_versions() -> dict:
+    """Loads forge versions"""
+    response = requests.get(mcssettings.FORGE_VERSION_LIST_URL, timeout=10)
+    response.raise_for_status()
+    forge_dict = response.json()
+    return forge_dict
+
+
+def load_server_versions():
+    """Loads server versions"""
     global urls  # pylint:disable=global-statement
+
+    # Retrieve versions data
+    vanilla_dict = _load_vanilla_versions()
+    # spigot_dict = _load_spigot_versions()
+    forge_dict = _load_forge_versions()
+
+    # Set urls
     urls = JarUrl()
     urls.set_urls(jar_type=0, data_dict=vanilla_dict)
+    # urls.set_urls(jar_type=1, data_dict={})
+    urls.set_urls(jar_type=2, data_dict=forge_dict)
 
 
 class JarUrl:
@@ -251,7 +285,7 @@ class JarUrl:
             self.spigot_urls = data_dict.copy()
         elif jar_type == 2:
             self.forge_urls = data_dict.copy()
-        self.update_version_list()
+        # self.update_version_list()
 
     def get_url(self, version: str, jar_type: int) -> str:
         """returns url of version"""
@@ -260,6 +294,18 @@ class JarUrl:
             if not self.vanilla_urls.get(version):
                 raise ValueError(_("Version URL not found"))
             return self.vanilla_urls.get(version)
+
+        if jar_type == 1:
+            # spigot url
+            if not self.spigot_urls.get(version):
+                raise ValueError(_("Version URL not found"))
+            return self.spigot_urls.get(version)
+
+        if jar_type == 2:
+            # forge url
+            if not self.forge_urls.get(version):
+                raise ValueError(_("Version URL not found"))
+            return self.forge_urls.get(version)
 
     def update_version_list(self):
         """updates server versions list"""
@@ -292,12 +338,42 @@ class JarUrl:
             # only stable versions
             filtered_list = []
             for ver in version_list:
-                value = ver.replace(".", "")
+                value = ver.replace(".", "").replace("-", "").strip()
                 if value.isnumeric():
                     filtered_list.append(ver)
             return filtered_list
 
         return version_list
+
+    def set_version_list(self, event, version_select: ui.select):
+        """sets version list"""
+        global server_versions  # pylint:disable=global-statement
+
+        # Gather data
+        jar_type = event.sender.value or 0
+
+        data = []
+        if jar_type == 0:
+            data = list(self.vanilla_urls.keys())
+        elif jar_type == 1:
+            data = list(self.spigot_urls.keys())
+        elif jar_type == 2:
+            data = list(self.forge_urls.keys())
+
+        server_versions = self.filter_version_list(version_list=list(set(data)))
+        version_select.set_options(server_versions)
+
+    def get_versions_for_type(self, jar_type: int) -> list:
+        """returns versions for type"""
+        data = []
+        if jar_type == 0:
+            data = list(self.vanilla_urls.keys())
+        elif jar_type == 1:
+            data = list(self.spigot_urls.keys())
+        elif jar_type == 2:
+            data = list(self.forge_urls.keys())
+
+        return self.filter_version_list(version_list=list(set(data)))
 
 
 def popup_edit_server(server: MinecraftServer):
