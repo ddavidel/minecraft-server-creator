@@ -3,6 +3,7 @@ Minecraft Server Module
 """
 
 import asyncio
+import subprocess
 import json
 import os
 import shutil
@@ -54,7 +55,7 @@ class MinecraftServer:
     def __init__(self, settings: dict, uuid: str = ""):
         # Setup attributes
         self.name = settings.get("name")
-        self.settings = settings or {}
+        self.settings = settings.copy() or {}
         self.running = False
         self.starting = False
         self.stopping = False
@@ -103,7 +104,7 @@ class MinecraftServer:
     @property
     def version(self) -> str:
         """display friendly server version"""
-        return self.settings["version"]
+        return self.settings["version"] or global_settings[self.uuid].get("version")
 
     @property
     def jar_type(self) -> int:
@@ -118,17 +119,47 @@ class MinecraftServer:
     @property
     def jar_path(self) -> str:
         """server's jar path"""
-        return os.path.join(self.settings["folder_path"], "server.jar")
+        if self.jar_type == 0:
+            # Vanilla
+            return os.path.join(self.server_path, "server.jar")
+
+        if self.jar_type == 1:
+            # Spigot
+            raise NotImplementedError()
+
+        if self.jar_type == 2:
+            # Forge
+            return os.path.join(
+                self.server_path,
+                f"minecraft_server.{self.version.split("-")[0]}.jar",
+            )
 
     @property
     def server_path(self) -> str:
         """server's jar path"""
-        return self.settings["folder_path"]
+        if self.jar_type == 0:
+            # Vanilla
+            return self.settings["folder_path"]
+
+        if self.jar_type == 1:
+            # Spigot
+            raise NotImplementedError()
+
+        if self.jar_type == 2:
+            # Forge
+            return os.path.join(self.settings["folder_path"], "server")
 
     @property
     def has_server_properties(self) -> bool:
         """Returns true if server.properties is in server dir"""
         return os.path.exists(os.path.join(self.server_path, "server.properties"))
+
+    def accept_eula(self):
+        """Accepts eula"""
+        eula_path = os.path.join(self.server_path, "eula.txt")
+
+        with open(eula_path, mode="w", encoding="utf-8") as eula:
+            eula.write("eula=true")
 
     def _create_server(self):
         """
@@ -150,13 +181,13 @@ class MinecraftServer:
         # download jar
         self._download_jar()
 
+        # Additional steps for forge
+        if self.jar_type == 2:
+            # install server
+            self._init_forge_server()
+
         # accept eula
-        with open(
-            os.path.join(self.settings["folder_path"], "eula.txt"),
-            mode="w",
-            encoding="utf-8",
-        ) as eula:
-            eula.write("eula=true")
+        self.accept_eula()
 
         # save into server.json
         self.save()
@@ -296,7 +327,7 @@ class MinecraftServer:
             line = await self.process.stdout.readline()
             self.starting = False
             self.running = True
-            while self.running:
+            while self.running or self.stopping:
                 line = await self.process.stdout.readline()
                 if self.log and line:
                     self.log.push(line.decode().strip())
@@ -387,6 +418,29 @@ class MinecraftServer:
             # ).replace("}", "").split(",")[0].strip().split(": ")
 
         return False
+
+    def _init_forge_server(self):
+        """Initializes forge server"""
+        # install server
+        assert self.jar_type == 2
+        try:
+            cmd = [
+                "java",
+                "-jar",
+                "server.jar",
+                "--installServer",
+                "server",
+            ]
+
+            # Start the subprocess
+            subprocess.run(
+                cmd,
+                cwd=self.settings["folder_path"],
+                check=False,
+            )
+
+        except Exception as e:
+            print(f"Error while initializing forge server {self.uuid}: {e}")
 
 
 def get_server_by_name(server_name: str) -> MinecraftServer | None:
