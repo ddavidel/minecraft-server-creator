@@ -14,6 +14,7 @@ from modules.utils import (
     popup_delete_server,
     shutdown,
     popup_update_app,
+    popup_app_settings,
 )
 from modules.server import MinecraftServer, server_list, get_server_by_uuid
 from modules.translations import translate as _
@@ -47,6 +48,11 @@ def build_drawer():
             _("Dashboard"),
             on_click=home.refresh,
             icon="space_dashboard",
+        ).classes("drawer-button")
+        ui.button(
+            _("Settings"),
+            on_click=popup_app_settings().open,
+            icon="tune",
         ).classes("drawer-button")
 
         update_popup = popup_update_app()
