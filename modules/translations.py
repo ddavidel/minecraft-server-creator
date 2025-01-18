@@ -7,12 +7,25 @@ import importlib
 from config.settings import DEFAULT_LANGUAGE
 
 
-try:
-    translations = importlib.import_module(
-        f"localization.{DEFAULT_LANGUAGE}"
-    ).translations
-except ImportError:
-    translations = {}
+languages_map = {
+    "en": "English",
+    "it": "Italiano",
+}
+
+
+def load_language():
+    """
+    Loads the language module based on the DEFAULT_LANGUAGE setting.
+    If the module is not found, an empty dictionary is returned.
+    """
+    try:
+        return importlib.import_module(f"localization.{DEFAULT_LANGUAGE}").translations
+
+    except ImportError:
+        return {}
+
+
+translations = load_language()
 
 
 def translate(message: str, **kwargs) -> str:
