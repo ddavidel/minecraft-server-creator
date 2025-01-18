@@ -1,6 +1,7 @@
 """Settings"""
 
 import os
+from modules.user_settings import user_settings
 
 
 # MISC APP SETTINGS
@@ -11,7 +12,8 @@ GITHUB_FILE_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/refs/heads/{
 BACKUP_DIR = "backups"
 
 # TRANSLATION SETTINGS
-DEFAULT_LANGUAGE = "en"
+DEFAULT_LANGUAGE = user_settings.get("language", "en")
+AVAILABLE_LANGAGUES = ["en", "it"]
 
 # SERVERS SETTINGS
 SERVERS_JSON_PATH = os.path.join(os.getcwd(), "config", "servers.json")
