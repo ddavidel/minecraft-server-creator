@@ -5,3 +5,4 @@ config/servers.json
 servers/*
 *.py[cod]
 backups/
+user_settings.json
