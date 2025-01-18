@@ -47,4 +47,7 @@ translations = {
     "Delete server folder": "Elimina cartella del server",
     "Delete": "Elimina",
     "Server version can't be empty": "La versione del server non può essere vuota",
+    "Some settings require a restart to take effect. Please restart the app after changing them.": "Alcune impostazioni richiedono un riavvio per avere effetto. Si prega di riavviare l'app dopo averle cambiate.",
+    "Close": "Chiudi",
+    "Language": "Lingua",
 }
