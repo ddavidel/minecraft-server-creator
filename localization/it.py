@@ -50,4 +50,6 @@ translations = {
     "Some settings require a restart to take effect. Please restart the app after changing them.": "Alcune impostazioni richiedono un riavvio per avere effetto. Si prega di riavviare l'app dopo averle cambiate.",
     "Close": "Chiudi",
     "Language": "Lingua",
+    "Unsupported Forge Version. THIS IS NOT A BUG!" : "Versione di Forge non supportata. QUESTO NON È UN BUG!",
+    "Creating server {name}" : "Creazione server {name}",
 }
