@@ -9,6 +9,9 @@ import json
 USER_SETTINGS_PATH = os.path.join(os.getcwd(), "config", "user_settings.json")
 
 
+KNOWN_SETTINGS = ["language"]
+
+
 def load_custom_settings():
     """
     Loads the user settings json. If the file does not exist, it is created.
@@ -49,7 +52,7 @@ def update_settings(settings_dict: dict = None, **kwargs):
     else:
         initial_settings = user_settings.copy()
         for key, value in kwargs.items():
-            if key not in user_settings.keys():
+            if key not in user_settings.keys() and key not in KNOWN_SETTINGS:
                 user_settings.update(initial_settings)
                 raise ValueError(f"Invalid setting: {key}")
 

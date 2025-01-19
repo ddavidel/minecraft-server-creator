@@ -10,7 +10,8 @@ import requests
 import pandas as pd
 
 from modules.server import MinecraftServer, full_stop
-from modules.translations import translate as _, load_language
+from modules.translations import translate as _
+from modules.user_settings import update_settings
 from config import settings as mcssettings
 from update import Update
 
@@ -610,8 +611,8 @@ def popup_update_app():
 def popup_app_settings():
     """App settings popup window"""
 
-    async def _update_settings():
-        load_language()
+    async def _update_settings(**kwargs):
+        update_settings(**kwargs)
 
     with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
         with ui.row():
@@ -630,16 +631,18 @@ def popup_app_settings():
                 mcssettings.AVAILABLE_LANGAGUES,
                 label=_("Language"),
                 with_input=False,
-                on_change=lambda x: _update_settings(),
-            ).classes("create-server-input").set_value(mcssettings.DEFAULT_LANGUAGE)
+                on_change=lambda x: _update_settings(language=x.value),
+            ).classes("create-server-input").style("width: 100% !important;").set_value(
+                mcssettings.DEFAULT_LANGUAGE
+            )
 
-            with ui.row().style("width: 100%;").style("flex-grow: 1;"):
-                ui.button(_("Close"), on_click=popup.close, icon="close").classes(
-                    "normal-secondary-button"
-                )
-                update_btn = (
-                    ui.button(_("Save"), icon="save")
-                    .classes("normal-primary-button")
-                    .on_click(_update_settings)
-                )
+        with ui.row().style("width: 100%;").style("flex-grow: 1;"):
+            ui.button(_("Close"), on_click=popup.close, icon="close").classes(
+                "normal-secondary-button"
+            ).style("width: 100% !important;")
+            # update_btn = (
+            #     ui.button(_("Save"), icon="save")
+            #     .classes("normal-primary-button")
+            #     .on_click(_update_settings)
+            # )
         return popup
