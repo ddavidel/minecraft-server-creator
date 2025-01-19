@@ -12,7 +12,7 @@ UPDATE_FILES = [
     {"filename": "style.css", "path": "static"},
     {"filename": "requirements.txt", "path": ""},
     {"filename": "VERSION.txt", "path": ""},
-    {"filename": "it.py", "path": "localization"},
+    # {"filename": "it.py", "path": "localization"},
     {"filename": "translations.py", "path": "modules"},
     {"filename": "user_settings.py", "path": "modules"},
 ]
