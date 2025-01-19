@@ -3,6 +3,7 @@ Minecraft Server Module
 """
 
 import asyncio
+import subprocess
 import json
 import os
 import shutil
@@ -12,6 +13,7 @@ import requests
 from nicegui import binding, ui
 
 from config import settings as mcssettings
+from modules.translations import translate as _
 
 
 server_list = []
@@ -53,7 +55,7 @@ class MinecraftServer:
     def __init__(self, settings: dict, uuid: str = ""):
         # Setup attributes
         self.name = settings.get("name")
-        self.settings = settings or {}
+        self.settings = settings.copy() or {}
         self.running = False
         self.starting = False
         self.stopping = False
@@ -78,11 +80,11 @@ class MinecraftServer:
         """Display-friendly status of the server"""
         if any([self.starting, self.stopping]):
             if self.starting and self.running is False:
-                return "Starting..."
+                return _("Starting")
             if self.stopping and self.running is True:
-                return "Stopping..."
+                return _("Stopping")
 
-        return "Running" if self.running else "Stopped"
+        return _("Running") if self.running else _("Stopped")
 
     @property
     def address(self) -> str:
@@ -102,7 +104,7 @@ class MinecraftServer:
     @property
     def version(self) -> str:
         """display friendly server version"""
-        return self.settings["version"]
+        return self.settings["version"] or global_settings[self.uuid].get("version")
 
     @property
     def jar_type(self) -> int:
@@ -117,17 +119,47 @@ class MinecraftServer:
     @property
     def jar_path(self) -> str:
         """server's jar path"""
-        return os.path.join(self.settings["folder_path"], "server.jar")
+        if self.jar_type == 0:
+            # Vanilla
+            return os.path.join(self.server_path, "server.jar")
+
+        if self.jar_type == 1:
+            # Spigot
+            raise NotImplementedError()
+
+        if self.jar_type == 2:
+            # Forge
+            return os.path.join(
+                self.server_path,
+                f"minecraft_server.{self.version.split("-")[0]}.jar",
+            )
 
     @property
     def server_path(self) -> str:
         """server's jar path"""
-        return self.settings["folder_path"]
+        if self.jar_type == 0:
+            # Vanilla
+            return self.settings["folder_path"]
+
+        if self.jar_type == 1:
+            # Spigot
+            raise NotImplementedError()
+
+        if self.jar_type == 2:
+            # Forge
+            return os.path.join(self.settings["folder_path"], "server")
 
     @property
     def has_server_properties(self) -> bool:
         """Returns true if server.properties is in server dir"""
         return os.path.exists(os.path.join(self.server_path, "server.properties"))
+
+    def accept_eula(self):
+        """Accepts eula"""
+        eula_path = os.path.join(self.server_path, "eula.txt")
+
+        with open(eula_path, mode="w", encoding="utf-8") as eula:
+            eula.write("eula=true")
 
     def _create_server(self):
         """
@@ -149,13 +181,14 @@ class MinecraftServer:
         # download jar
         self._download_jar()
 
+        # Additional steps for forge
+        if self.jar_type == 2:
+            # install server
+            self._init_forge_server()
+            self._set_user_jvm_args()
+
         # accept eula
-        with open(
-            os.path.join(self.settings["folder_path"], "eula.txt"),
-            mode="w",
-            encoding="utf-8",
-        ) as eula:
-            eula.write("eula=true")
+        self.accept_eula()
 
         # save into server.json
         self.save()
@@ -205,7 +238,7 @@ class MinecraftServer:
 
         print(f"Server {self.uuid} saved!")
 
-    async def start(self):
+    async def _start_jar(self):
         """Starts the server"""
         self.starting = True
         try:
@@ -250,7 +283,21 @@ class MinecraftServer:
             self.starting = False
             self.running = False
 
-    async def stop(self):
+    async def start(self):
+        """Proxy function to start the server"""
+        if self.jar_type == 0:
+            # Vanilla
+            await self._start_jar()
+
+        elif self.jar_type == 1:
+            # Spigot
+            raise NotImplementedError("Not yet implemented.")
+
+        elif self.jar_type == 2:
+            # Forge
+            await self._start_forge()
+
+    async def _stop_jar(self):
         """Stops the server"""
         if self.process and self.running:
             print("Stopping the server...")
@@ -275,6 +322,47 @@ class MinecraftServer:
         else:
             print("Server is not running.")
 
+    async def _stop_forge(self):
+        """
+        Stops the server. Same as regular stop but
+        without waiting for the process to finish.
+        """
+        if self.process and self.running:
+            print("Stopping the server...")
+            self.running = False
+            self.stopping = True
+            try:
+                # Send the 'stop' command to the server
+                if self.process.stdin:
+                    self.process.stdin.write(b"stop\n")
+                    await self.process.stdin.drain()
+
+                print("Server stopped.")
+            except Exception as e:
+                print(f"Error while stopping the server: {e}")
+            finally:
+                # Ensure process cleanup
+                self.process = None
+                self.running = False
+                self.stopping = False
+        else:
+            print("Server is not running.")
+
+    async def stop(self):
+        """Proxy function to stop the server"""
+        if self.jar_type == 0:
+            # Vanilla
+            await self._stop_jar()
+
+        elif self.jar_type == 1:
+            # Spigot
+            raise NotImplementedError("Not yet implemented.")
+
+        elif self.jar_type == 2:
+            # Forge
+            await self._stop_forge()
+
+
     async def console_writer(self, command: str):
         """Reads user input and sends it to the server."""
         try:
@@ -295,7 +383,7 @@ class MinecraftServer:
             line = await self.process.stdout.readline()
             self.starting = False
             self.running = True
-            while self.running:
+            while self.running or self.stopping:
                 line = await self.process.stdout.readline()
                 if self.log and line:
                     self.log.push(line.decode().strip())
@@ -306,10 +394,11 @@ class MinecraftServer:
 
     def delete(self, delete_dir: bool = False):
         """Deletes the server from servers.json"""
+        # Don't use self.server_path here
         if not self.running and not self.process:
             if delete_dir:
-                for item in os.listdir(self.server_path):
-                    item_path = os.path.join(self.server_path, item)
+                for item in os.listdir(self.settings["folder_path"]):
+                    item_path = os.path.join(self.settings["folder_path"], item)
                     try:
                         if os.path.isfile(item_path) or os.path.islink(item_path):
                             os.unlink(item_path)
@@ -318,14 +407,14 @@ class MinecraftServer:
                     except Exception as e:
                         print(f"Failed to delete {item_path}: {e}")
                 # remove server dir
-                shutil.rmtree(self.server_path)
+                shutil.rmtree(self.settings["folder_path"])
 
             # remove from server_list
-            assert self in server_list, "Invalid server"
+            assert self in server_list, _("Invalid server")
             server_list.remove(self)
 
             # remove from global_settings
-            assert global_settings[self.uuid], "Invalid server"
+            assert global_settings[self.uuid], _("Invalid server")
             del global_settings[self.uuid]
 
             # update settings
@@ -386,6 +475,91 @@ class MinecraftServer:
             # ).replace("}", "").split(",")[0].strip().split(": ")
 
         return False
+
+    def _init_forge_server(self):
+        """Initializes forge server"""
+        # install server
+        assert self.jar_type == 2
+        try:
+            cmd = [
+                "java",
+                "-jar",
+                "server.jar",
+                "--installServer",
+                "server",
+            ]
+
+            # Start the subprocess
+            subprocess.run(
+                cmd,
+                cwd=self.settings["folder_path"],
+                check=False,
+            )
+
+        except Exception as e:
+            print(f"Error while initializing forge server {self.uuid}: {e}")
+
+    def _set_user_jvm_args(self):
+        """Sets set_user_jvm_args for FORGE server. ONLY FORGE SERVERS"""
+        if self.jar_type == 2:
+            user_jvm_args_path = os.path.join(self.server_path, "user_jvm_args.txt")
+            args = f"-Xmx{self.settings['dedicated_ram']}G"
+
+            # Wait for server folder to be created
+            exists = bool(os.path.exists(self.server_path))
+            while not exists:
+                exists = bool(os.path.exists(self.server_path))
+
+            if os.path.exists(user_jvm_args_path):
+                with open(user_jvm_args_path, "w", encoding="utf-8") as file:
+                    file.write(args)
+                    file.flush()
+
+            else:
+                raise ValueError(_("Unsupported Forge Version. THIS IS NOT A BUG!"))
+
+        else:
+            raise ValueError("This is not a Forge server")
+
+    async def _start_forge(self):
+        """Starts the forge server"""
+        self.starting = True
+        try:
+            if not os.path.exists(os.path.join(self.server_path, "run.bat")):
+                raise ValueError(_("Unsupported Forge Version. THIS IS NOT A BUG!"))
+
+            cmd = ["cmd.exe", "/c", "run.bat"]
+
+            # Start the subprocess
+            self.process = await asyncio.create_subprocess_exec(
+                *cmd,
+                cwd=self.server_path,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+
+            # Start tasks for reading output and taking input
+            output_task = asyncio.create_task(self._console_reader())
+            # input_task = asyncio.create_task(self.console_writer())
+
+            # Wait for the server process to finish
+            await self.process.wait()
+
+            self.running = False
+
+            # Cancel input and output tasks once the server stops
+            await asyncio.gather(output_task, return_exceptions=True)
+
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+        finally:
+            self.starting = False
+            self.running = False
 
 
 def get_server_by_name(server_name: str) -> MinecraftServer | None:

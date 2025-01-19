@@ -46,6 +46,7 @@ class Main:
             dark=True,
             frameless=True,
             show=False,
+            reconnect_timeout=60,
         )
 
 
