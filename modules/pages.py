@@ -49,11 +49,11 @@ def build_drawer():
             on_click=home.refresh,
             icon="space_dashboard",
         ).classes("drawer-button")
-        # ui.button(
-        #     _("Settings"),
-        #     on_click=popup_app_settings().open,
-        #     icon="tune",
-        # ).classes("drawer-button")
+        ui.button(
+            _("Settings"),
+            on_click=popup_app_settings().open,
+            icon="tune",
+        ).classes("drawer-button")
 
         update_popup = popup_update_app()
         if check_for_updates():
