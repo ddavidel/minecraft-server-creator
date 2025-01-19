@@ -86,8 +86,8 @@ def popup_create_server():
     async def _create_server(caller: ui.button, settings: dict):
         caller.disable()
         n = ui.notification(
-            message=_("Starting creation of server {name}", name=settings.get("name")),
-            timeout=30,
+            message=_("Creating server {name}", name=settings.get("name")),
+            timeout=None,
             spinner=True,
             type="info",
         )
@@ -253,7 +253,17 @@ def _load_forge_versions() -> dict:
     response = requests.get(mcssettings.FORGE_VERSION_LIST_URL, timeout=10)
     response.raise_for_status()
     forge_dict = response.json()
-    return forge_dict
+
+    # atm mcsc works only with forge version from 1.17.0
+    # so we need to remove the previous versions
+    filtered_dict = {}
+    for version in forge_dict.keys():
+        text_version = version.split("-")[0].replace(".","").replace("0","")
+        if text_version.isnumeric():
+            version_number = int(text_version)
+            if version_number >= 1170:
+                filtered_dict[version] = forge_dict[version]
+    return filtered_dict
 
 
 def load_server_versions():
@@ -526,7 +536,7 @@ def popup_delete_server(server: MinecraftServer):
             n.spinner = False
             n.type = "positive"
             n.message = _("Server deleted")
-            await asyncio.sleep(3)
+            await asyncio.sleep(1.5)
             n.dismiss()
             ui.navigate.to("/")
 
@@ -624,7 +634,7 @@ def popup_app_settings():
                     "Some settings require a restart to take effect. "
                     "Please restart the app after changing them."
                 )
-            ).style("opacity: 0.6")
+            ).style("opacity: 0.6; color: rgb(255, 152, 0)")
 
         with ui.row().style("width: 100%;"):
             ui.select(
