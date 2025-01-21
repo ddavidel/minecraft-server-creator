@@ -258,7 +258,7 @@ def _load_forge_versions() -> dict:
     # so we need to remove the previous versions
     filtered_dict = {}
     for version in forge_dict.keys():
-        text_version = version.split("-")[0].replace(".","").replace("0","")
+        text_version = version.split("-")[0].replace(".","").strip("0")
         if text_version.isnumeric():
             version_number = int(text_version)
             if version_number >= 1170:
