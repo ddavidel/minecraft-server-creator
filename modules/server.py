@@ -131,7 +131,7 @@ class MinecraftServer:
             # Forge
             return os.path.join(
                 self.server_path,
-                f"minecraft_server.{self.version.split("-")[0]}.jar",
+                f"minecraft_server.{self.version.split('-')[0]}.jar",
             )
 
     @property
