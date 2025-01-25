@@ -52,4 +52,9 @@ translations = {
     "Language": "Lingua",
     "Unsupported Forge Version. THIS IS NOT A BUG!" : "Versione di Forge non supportata. QUESTO NON È UN BUG!",
     "Creating server {name}" : "Creazione server {name}",
+    "App Settings" : "Impostazioni App",
+    "Update Now" : "Aggiorna Ora",
+    "A new version of the app is available. Do you want to update now?" : "È disponibile una nuova versione dell'app. Vuoi aggiornare ora?",
+    "Update Available" : "Aggiornamento Disponibile",
+    "Later" : "Dopo",
 }
