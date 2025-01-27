@@ -199,3 +199,16 @@
     width: 100% !important;
     height: 80% !important;
 }
+
+.stat-grid {
+    width: 100% !important;
+}
+
+.stat-chip {
+    background-color: transparent !important;
+    border-radius: 10px !important;
+    overflow: show !important;
+    width: auto !important;
+    text-align: right !important;
+    opacity: 0.6 !important;
+}
