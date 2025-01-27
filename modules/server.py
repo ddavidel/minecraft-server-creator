@@ -14,6 +14,7 @@ from nicegui import binding, ui
 
 from config import settings as mcssettings
 from modules.translations import translate as _
+from modules.classes import ProcessMonitor
 
 
 server_list = []
@@ -62,6 +63,7 @@ class MinecraftServer:
         self.process = None
         self.log = None
         self.server_properties = {}
+        self.monitor = ProcessMonitor()
 
         if not uuid:
             self._create_server()
@@ -261,6 +263,10 @@ class MinecraftServer:
                 stderr=asyncio.subprocess.STDOUT,
             )
 
+            # Start monitoring the process
+            self.monitor.process = self.process
+            monitor_task = asyncio.create_task(self.monitor.run())
+
             # Start tasks for reading output and taking input
             output_task = asyncio.create_task(self._console_reader())
             # input_task = asyncio.create_task(self.console_writer())
@@ -272,6 +278,7 @@ class MinecraftServer:
 
             # Cancel input and output tasks once the server stops
             await asyncio.gather(output_task, return_exceptions=True)
+            await asyncio.gather(monitor_task, return_exceptions=True)
 
         except FileNotFoundError as e:
             print(f"Error: {e}")
@@ -319,6 +326,7 @@ class MinecraftServer:
                 self.process = None
                 self.running = False
                 self.stopping = False
+                self.monitor.stop()
         else:
             print("Server is not running.")
 
@@ -345,6 +353,7 @@ class MinecraftServer:
                 self.process = None
                 self.running = False
                 self.stopping = False
+                self.monitor.stop()
         else:
             print("Server is not running.")
 
@@ -539,6 +548,10 @@ class MinecraftServer:
                 stderr=asyncio.subprocess.STDOUT,
             )
 
+            # Start monitoring the process
+            self.monitor.process = self.process
+            monitor_task = asyncio.create_task(self.monitor.run())
+
             # Start tasks for reading output and taking input
             output_task = asyncio.create_task(self._console_reader())
             # input_task = asyncio.create_task(self.console_writer())
@@ -550,6 +563,7 @@ class MinecraftServer:
 
             # Cancel input and output tasks once the server stops
             await asyncio.gather(output_task, return_exceptions=True)
+            await asyncio.gather(monitor_task, return_exceptions=True)
 
         except FileNotFoundError as e:
             print(f"Error: {e}")
