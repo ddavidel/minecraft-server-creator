@@ -126,6 +126,28 @@ def server_detail(uuid: str):
             "background-color: rgb(216, 68, 68) !important"
         )
 
+        # Stats section
+        ui.space()
+        # ui.label(_("System Usage")).style("font-size: 25px opacity: 0.6;")
+        ui.separator()
+        with ui.grid(rows=2, columns=2).classes("stat-grid"):
+            ui.chip("", icon="donut_large").bind_text_from(
+                server.monitor, "ram_usage", lambda x: f"{x} MB"
+            ).classes("stat-chip")
+            ui.chip("", icon="memory").bind_text_from(
+                server.monitor, "cpu_usage", lambda x: f"{x} %"
+            ).classes("stat-chip")
+            ui.chip("", icon="swap_vert").bind_text_from(
+                server.monitor,
+                "disk_read",
+                lambda x: f"{x} MB/s",
+            ).classes("stat-chip")
+            ui.chip("", icon="swap_vert").bind_text_from(
+                server.monitor,
+                "disk_write",
+                lambda x: f"{x} MB/s",
+            ).classes("stat-chip")
+
     with container:
         log = ui.log(mcssettings.MAX_LOG_LINES).classes("log-window")
         server.log = log
