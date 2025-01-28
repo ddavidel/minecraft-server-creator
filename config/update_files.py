@@ -15,4 +15,5 @@ UPDATE_FILES = [
     # {"filename": "it.py", "path": "localization"},
     {"filename": "translations.py", "path": "modules"},
     {"filename": "user_settings.py", "path": "modules"},
+    {"filename": "classes.py", "path": "modules"},
 ]

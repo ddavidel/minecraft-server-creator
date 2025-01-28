@@ -199,3 +199,32 @@
     width: 100% !important;
     height: 80% !important;
 }
+
+.stat-grid {
+    width: 100% !important;
+}
+
+.stat-chip {
+    background-color: transparent !important;
+    border-radius: 10px !important;
+    overflow: show !important;
+    width: auto !important;
+    text-align: right !important;
+    opacity: 0.6 !important;
+}
+
+.circular-button {
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 50%;
+    box-shadow: none !important;
+    text-shadow: transparent !important;
+    color: white !important;
+    font-size: 12px !important;
+    /* Adjust icon size */
+    padding: 8px !important;
+    justify-content: center !important;
+    align-items: center !important;
+    outline: transparent !important;
+    margin-top: 15px !important;
+}

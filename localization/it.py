@@ -52,4 +52,10 @@ translations = {
     "Language": "Lingua",
     "Unsupported Forge Version. THIS IS NOT A BUG!" : "Versione di Forge non supportata. QUESTO NON È UN BUG!",
     "Creating server {name}" : "Creazione server {name}",
+    "Open server folder": "Apri cartella del server",
+    "RAM usage": "Utilizzo RAM",
+    "CPU usage": "Utilizzo CPU",
+    "Disk read": "Lettura disco",
+    "Disk write": "Scrittura disco",
+    "Back": "Indietro",
 }
