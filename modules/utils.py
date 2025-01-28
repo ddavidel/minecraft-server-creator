@@ -3,7 +3,9 @@ Utils
 """
 
 import io
+import os
 import asyncio
+import platform
 import psutil
 from nicegui import ui, app
 import requests
@@ -68,6 +70,18 @@ async def stop_processes():
 def shutdown():
     """Shuts down the app, stopping all servers and processes"""
     asyncio.create_task(stop_processes())
+
+
+def open_file_explorer(path: str):
+    """Opens file explorer"""
+    if platform.system() == "Windows":
+        os.startfile(path)
+    elif platform.system() == "Darwin":  # This is macOS according to ChatGPT
+        os.system(f"open {path}")
+    elif platform.system() == "Linux":
+        os.system(f"xdg-open {path}")
+    else:
+        print("Unsupported operating system")
 
 
 def popup_create_server():
@@ -258,7 +272,7 @@ def _load_forge_versions() -> dict:
     # so we need to remove the previous versions
     filtered_dict = {}
     for version in forge_dict.keys():
-        text_version = version.split("-")[0].replace(".","").strip("0")
+        text_version = version.split("-")[0].replace(".", "").strip("0")
         if text_version.isnumeric():
             version_number = int(text_version)
             if version_number >= 1170:
