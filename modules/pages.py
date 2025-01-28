@@ -3,7 +3,7 @@ Pages
 """
 
 import asyncio
-from nicegui import ui, html, app
+from nicegui import ui, html
 
 from config import settings as mcssettings
 
@@ -15,6 +15,7 @@ from modules.utils import (
     shutdown,
     popup_update_app,
     popup_app_settings,
+    open_file_explorer,
 )
 from modules.server import MinecraftServer, server_list, get_server_by_uuid
 from modules.translations import translate as _
@@ -85,11 +86,17 @@ def server_detail(uuid: str):
 
     with header:
         ui.button("", on_click=shutdown, icon="close").classes("close-button")
-        ui.button("", on_click=ui.navigate.back, icon="arrow_back_ios_new").classes(
+        with ui.button("", on_click=ui.navigate.back, icon="arrow_back_ios_new").classes(
             "back-button"
-        )
-        ui.label(server.name).style("font-size: 40px;")
-        with ui.button_group().style("margin: 12px"):
+        ):
+            ui.tooltip(_("Back")).style("font-size: 15px;").props("delay=1500")
+        with ui.label(server.name).style("font-size: 40px;"):
+            ui.tooltip(server.uuid).style("font-size: 15px;")
+        with ui.button("", icon="folder").style("margin-left: 10px;").on_click(
+            lambda x: open_file_explorer(server.server_path)
+        ).classes("circular-button"):
+            ui.tooltip(_("Open server folder")).style("font-size: 15px;")
+        with ui.button_group().style("margin-top: 15px"):
             ui.button(_("Start"), icon="play_arrow").on_click(server.start).classes(
                 "start-button"
             ).bind_enabled_from(server, "running", lambda s: not s)
@@ -131,22 +138,30 @@ def server_detail(uuid: str):
         # ui.label(_("System Usage")).style("font-size: 25px opacity: 0.6;")
         ui.separator()
         with ui.grid(rows=2, columns=2).classes("stat-grid"):
-            ui.chip("", icon="donut_large").bind_text_from(
+            # RAM usage
+            with ui.chip("", icon="donut_large").bind_text_from(
                 server.monitor, "ram_usage", lambda x: f"{x} MB"
-            ).classes("stat-chip")
-            ui.chip("", icon="memory").bind_text_from(
+            ).classes("stat-chip"):
+                ui.tooltip(_("RAM usage")).style("font-size: 15px;")
+            # CPU usage
+            with ui.chip("", icon="memory").bind_text_from(
                 server.monitor, "cpu_usage", lambda x: f"{x} %"
-            ).classes("stat-chip")
-            ui.chip("", icon="swap_vert").bind_text_from(
+            ).classes("stat-chip"):
+                ui.tooltip(_("CPU usage")).style("font-size: 15px;")
+            # Disk read
+            with ui.chip("", icon="swap_vert").bind_text_from(
                 server.monitor,
                 "disk_read",
                 lambda x: f"{x} MB/s",
-            ).classes("stat-chip")
-            ui.chip("", icon="swap_vert").bind_text_from(
+            ).classes("stat-chip"):
+                ui.tooltip(_("Disk read")).style("font-size: 15px;")
+            # Disk write
+            with ui.chip("", icon="swap_vert").bind_text_from(
                 server.monitor,
                 "disk_write",
                 lambda x: f"{x} MB/s",
-            ).classes("stat-chip")
+            ).classes("stat-chip"):
+                ui.tooltip(_("Disk write")).style("font-size: 15px;")
 
     with container:
         log = ui.log(mcssettings.MAX_LOG_LINES).classes("log-window")
