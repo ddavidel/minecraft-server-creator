@@ -63,4 +63,7 @@ translations = {
     "App Settings": "Impostazioni App",
     "No updates available": "Nessun aggiornamento disponibile",
     "Checking for updates...": "Controllo aggiornamenti...",
+    "Update complete. Restart the app": "Aggiornamento completato. Riavvia l'app",
+    "Updating": "Aggiornamento in corso",
+    "Something went wrong": "Qualcosa è andato storto",
 }
