@@ -228,3 +228,22 @@
     outline: transparent !important;
     margin-top: 15px !important;
 }
+
+.minimize-button {
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 50%;
+    box-shadow: none !important;
+    text-shadow: transparent !important;
+    color: white !important;
+    font-size: 12px !important;
+    /* Adjust icon size */
+    padding: 8px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    position: absolute !important;
+    top: 10px !important;
+    right: 50px !important;
+    outline: transparent !important;
+}
