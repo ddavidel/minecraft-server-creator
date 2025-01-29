@@ -16,6 +16,7 @@ from modules.utils import (
     popup_update_app,
     popup_app_settings,
     open_file_explorer,
+    minimize_window,
 )
 from modules.server import MinecraftServer, server_list, get_server_by_uuid
 from modules.translations import translate as _
@@ -35,6 +36,7 @@ def build_base_window(header: ui.header):
     """Builds base window for app"""
     load_head()
     with header:
+        ui.button("", on_click=minimize_window, icon="remove").classes("minimize-button")
         ui.button("", on_click=shutdown, icon="close").classes("close-button")
 
 
@@ -133,8 +135,9 @@ def server_detail(uuid: str):
 
     server = get_server_by_uuid(uuid=uuid)
 
+    build_base_window(header=header)
+
     with header:
-        ui.button("", on_click=shutdown, icon="close").classes("close-button")
         with ui.button(
             "", on_click=ui.navigate.back, icon="arrow_back_ios_new"
         ).classes("back-button"):
