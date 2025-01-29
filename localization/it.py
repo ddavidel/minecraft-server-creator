@@ -61,4 +61,6 @@ translations = {
     "Update available": "Aggiornamento disponibile",
     "Check for updates": "Controlla aggiornamenti",
     "App Settings": "Impostazioni App",
+    "No updates available": "Nessun aggiornamento disponibile",
+    "Checking for updates...": "Controllo aggiornamenti...",
 }
