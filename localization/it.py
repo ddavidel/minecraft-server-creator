@@ -58,4 +58,7 @@ translations = {
     "Disk read": "Lettura disco",
     "Disk write": "Scrittura disco",
     "Back": "Indietro",
+    "Update available": "Aggiornamento disponibile",
+    "Check for updates": "Controlla aggiornamenti",
+    "App Settings": "Impostazioni App",
 }
