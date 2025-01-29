@@ -72,6 +72,11 @@ def shutdown():
     asyncio.create_task(stop_processes())
 
 
+def minimize_window():
+    """Minimizes the window"""
+    app.native.main_window.minimize()
+
+
 def open_file_explorer(path: str):
     """Opens file explorer"""
     if platform.system() == "Windows":
@@ -605,8 +610,28 @@ def popup_update_app():
     """Update app popup window"""
     update = Update()
 
-    async def _update_app():
-        asyncio.create_task(update.run())
+    async def _update_app(sender: ui.button):
+        sender.disable()
+        notification = ui.notification(
+            _("Updating"), timeout=None, spinner=True, type="info"
+        )
+        await asyncio.sleep(1)
+
+        # Run update
+        update_task = asyncio.create_task(update.run())
+        await update_task
+
+        notification.spinner = False
+        if update.completed:
+            notification.message = _("Update complete. Restart the app")
+            notification.type = "positive"
+        else:
+            notification.message = _("Something went wrong")
+            notification.type = "negative"
+            sender.enable()
+
+        await asyncio.sleep(5)
+        notification.dismiss()
 
     with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
         with ui.row():
@@ -624,11 +649,9 @@ def popup_update_app():
                 ui.button("Later", on_click=popup.close, icon="close").classes(
                     "normal-secondary-button"
                 )
-                update_btn = (
-                    ui.button("Update Now", icon="download")
-                    .classes("normal-primary-button")
-                    .on_click(_update_app)
-                )
+                ui.button("Update Now", icon="download").classes(
+                    "normal-primary-button"
+                ).on_click(lambda x: _update_app(x.sender))
         return popup
 
 
