@@ -21,6 +21,8 @@ from modules.server import MinecraftServer, server_list, get_server_by_uuid
 from modules.translations import translate as _
 from update import check_for_updates
 
+update_available = check_for_updates()
+
 
 def load_head():
     """Loads page head"""
@@ -40,6 +42,36 @@ def build_drawer():
     """Builds left drawer"""
     # Setup
     update_popup = popup_update_app()
+
+    async def _check_updates(update_btn: ui.button):
+        update_btn.disable()
+        global update_available  # pylint: disable=global-statement
+
+        if not update_available:
+            notification = ui.notification(
+                message=_("Checking for updates..."),
+                timeout=3,
+                spinner=True,
+                type="info",
+            )
+            await asyncio.sleep(1)
+
+            if check_for_updates():
+                update_available = True
+                update_btn.style("background-color: rgb(255, 152, 0) !important")
+                notification.message = _("Update available")
+                notification.spinner = False
+                update_btn.set_text(_("Update available"))
+                update_popup.open()
+            else:
+                update_available = False
+                notification.message = _("No updates available")
+                notification.spinner = False
+
+        else:
+            update_popup.open()
+
+        update_btn.enable()
 
     # Build drawer
     with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
@@ -67,10 +99,12 @@ def build_drawer():
         # Update
         update_button = ui.button(
             _("Check for updates"),
-            on_click=update_popup.open,
+            on_click=lambda x: _check_updates(x.sender),
             icon="download",
         ).classes("drawer-button")
-        if check_for_updates():
+
+        # Automatically check for updates (this could be a user setting)
+        if update_available:
             update_button.style("background-color: rgb(255, 152, 0) !important")
             update_button.set_text(_("Update available"))
             update_popup.open()
