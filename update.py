@@ -61,6 +61,7 @@ class Update:
         self.app_dir = get_app_dir()
         self.backup_dir = os.path.join(self.app_dir, BACKUP_DIR)
         self.status = ""
+        self.completed = False
 
     async def run(self):
         """
@@ -83,6 +84,7 @@ class Update:
                 )
 
             self.status = "Update complete"
+            self.completed = True
 
         else:
             print("No updates available")
