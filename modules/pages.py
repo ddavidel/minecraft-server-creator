@@ -38,8 +38,15 @@ def build_base_window(header: ui.header):
 
 def build_drawer():
     """Builds left drawer"""
+    # Setup
+    update_popup = popup_update_app()
+
+    # Build drawer
     with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
+        # Logo
         ui.image("/static/logo.png")
+
+        # App Buttons
         ui.button(
             _("Create Server"),
             on_click=popup_create_server().open,
@@ -50,28 +57,36 @@ def build_drawer():
             on_click=home.refresh,
             icon="space_dashboard",
         ).classes("drawer-button")
-        # ui.button(
-        #     _("Settings"),
-        #     on_click=popup_app_settings().open,
-        #     icon="tune",
-        # ).classes("drawer-button")
 
-        update_popup = popup_update_app()
+        # Split the buttons
+        ui.space()
+
+        # with ui.expansion(_("Settings"), icon="settings").style(
+        #     "width: 100%; border-radius: 10px;"
+        # ):
+        # Update
+        update_button = ui.button(
+            _("Check for updates"),
+            on_click=update_popup.open,
+            icon="download",
+        ).classes("drawer-button")
         if check_for_updates():
+            update_button.style("background-color: rgb(255, 152, 0) !important")
+            update_button.set_text(_("Update available"))
             update_popup.open()
-            ui.button(
-                "Update available",
-                on_click=update_popup.open,
-                icon="download",
-            ).classes("drawer-button").style(
-                "background-color: rgb(255, 152, 0) !important"
-            )
             ui.notification(
-                message="Update available",
+                message=_("Update available"),
                 timeout=30,
                 spinner=False,
                 type="info",
             )
+
+        # Settings
+        # ui.button(
+        #     _("App Settings"),
+        #     on_click=popup_app_settings().open,
+        #     icon="tune",
+        # ).classes("drawer-button")
 
 
 @ui.page("/server_detail/{uuid}")
@@ -86,9 +101,9 @@ def server_detail(uuid: str):
 
     with header:
         ui.button("", on_click=shutdown, icon="close").classes("close-button")
-        with ui.button("", on_click=ui.navigate.back, icon="arrow_back_ios_new").classes(
-            "back-button"
-        ):
+        with ui.button(
+            "", on_click=ui.navigate.back, icon="arrow_back_ios_new"
+        ).classes("back-button"):
             ui.tooltip(_("Back")).style("font-size: 15px;").props("delay=1500")
         with ui.label(server.name).style("font-size: 40px;"):
             ui.tooltip(server.uuid).style("font-size: 15px;")
