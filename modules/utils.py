@@ -33,6 +33,19 @@ def get_system_total_ram():
     return round(psutil.virtual_memory().total / (1024**3))
 
 
+def get_suggested_ram() -> int | float:
+    """
+    Suggested ram for server in GB.
+    This makes sense for most servers since its usually better
+    to have a server with 4~6GB of ram.
+    However, if a server has lots of mods or plugins, it may need more ram.
+    """
+    value = round(get_system_total_ram() / 4)
+    if value > 6:
+        return 6
+    return value
+
+
 async def send_notification(
     msg: str,
     timeout: None | int = 3,
@@ -95,7 +108,7 @@ def popup_create_server():
     system_ram = get_system_total_ram()
     server_settings = {
         "name": "",
-        "dedicated_ram": round(system_ram / 4),
+        "dedicated_ram": get_suggested_ram(),
         "version": "",
         "jar_type": 0,
         "address": "default",
@@ -121,7 +134,7 @@ def popup_create_server():
             # Reset settings and name
             settings = {
                 "name": "",
-                "dedicated_ram": round(system_ram / 4),
+                "dedicated_ram": get_suggested_ram(),
                 "version": "",
                 "jar_type": 0,
                 "address": "default",
@@ -173,7 +186,7 @@ def popup_create_server():
 
         ui.label(_("Dedicated RAM")).style("font-size: 30px;")
         ui.label(
-            _("Suggested for this device: {value} GB", value=round(system_ram / 4))
+            _("Suggested for this device: {value} GB", value=get_suggested_ram())
         ).style("opacity: 0.6")
         with ui.row().style("width: 100%; margin-top: 10px;"):
             ui.label("1 GB")
@@ -181,7 +194,7 @@ def popup_create_server():
                 max=system_ram,
                 min=1,
                 step=1,
-                value=round(system_ram / 4),
+                value=get_suggested_ram(),
             ).classes("create-server-input").style("width: 75%;").props(
                 "label-always"
             ).bind_value(
