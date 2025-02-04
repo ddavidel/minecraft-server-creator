@@ -15,7 +15,7 @@ from modules.server import MinecraftServer, full_stop
 from modules.translations import translate as _
 from modules.user_settings import update_settings
 from config import settings as mcssettings
-from update import Update
+from update import Update, get_current_version
 
 
 server_versions = []
@@ -675,8 +675,18 @@ def popup_app_settings():
         update_settings(**kwargs)
 
     with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
-        with ui.row():
-            ui.label("App Settings").style("font-size: 30px;")
+        with ui.row().style("width: 100%;"):
+            with ui.grid(rows=1, columns=3):
+                ui.image("/static/logo.png").style("width: 100px;")
+                ui.label(_("Version: {version}", version=get_current_version())).style(
+                    "opacity: 0.6;"
+                )
+                # ui.link("See changelog").style("opacity: 0.6;").on(
+                #     "click", lambda x: ui.navigate.to("/changelog")
+                # )
+
+        # with ui.row():
+        #     ui.label(_("Settings")).style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
             ui.label(
@@ -687,14 +697,18 @@ def popup_app_settings():
             ).style("opacity: 0.6; color: rgb(255, 152, 0)")
 
         with ui.row().style("width: 100%;"):
-            ui.select(
-                mcssettings.AVAILABLE_LANGAGUES,
-                label=_("Language"),
-                with_input=False,
-                on_change=lambda x: _update_settings(language=x.value),
-            ).classes("create-server-input").style("width: 100% !important;").set_value(
-                mcssettings.DEFAULT_LANGUAGE
+            language_select = (
+                ui.select(
+                    mcssettings.AVAILABLE_LANGAGUES,
+                    label=_("Language"),
+                    with_input=False,
+                    on_change=lambda x: _update_settings(language=x.value),
+                )
+                .classes("create-server-input")
+                .style("width: 100% !important;")
             )
+            language_select.set_value(mcssettings.DEFAULT_LANGUAGE)
+            language_select.disable()
 
         with ui.row().style("width: 100%;").style("flex-grow: 1;"):
             ui.button(_("Close"), on_click=popup.close, icon="close").classes(
