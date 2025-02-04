@@ -118,11 +118,11 @@ def build_drawer():
             )
 
         # Settings
-        # ui.button(
-        #     _("App Settings"),
-        #     on_click=popup_app_settings().open,
-        #     icon="tune",
-        # ).classes("drawer-button")
+        ui.button(
+            _("App Settings"),
+            on_click=popup_app_settings().open,
+            icon="tune",
+        ).classes("drawer-button")
 
 
 @ui.page("/server_detail/{uuid}")
