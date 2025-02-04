@@ -66,4 +66,7 @@ translations = {
     "Update complete. Restart the app": "Aggiornamento completato. Riavvia l'app",
     "Updating": "Aggiornamento in corso",
     "Something went wrong": "Qualcosa è andato storto",
+    "MCSC Settings": "Impostazioni MCSC",
+    "Coming soon": "Prossimamente",
+    "Version: {version}" : "Versione: {version}",
 }
