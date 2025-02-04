@@ -26,15 +26,22 @@ def get_app_dir() -> str:
     return os.path.dirname(os.path.realpath(__file__))
 
 
+def get_current_version() -> str:
+    """
+    Get current version
+    """
+    try:
+        with open(VERSION_FILENAME, "r", encoding="utf-8") as file:
+            return file.read().strip()
+    except FileNotFoundError:
+        return "0.0.0"
+
+
 def check_for_updates() -> bool:
     """
     Check for updates
     """
-    try:
-        with open(VERSION_FILENAME, "r", encoding="utf-8") as file:
-            current_version = file.read().strip()
-    except FileNotFoundError:
-        current_version = "0.0.0"
+    current_version = get_current_version()
 
     try:
         response = requests.get(GITHUB_FILE_URL, timeout=5)
