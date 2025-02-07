@@ -230,30 +230,9 @@ def popup_create_server():
 
 def _load_vanilla_versions() -> dict:
     """Loads vanilla versions"""
-    response = requests.get(mcssettings.JAVA_VERSION_LIST_URL, timeout=10)
+    response = requests.get(mcssettings.VANILLA_VERSION_LIST_URL, timeout=10)
     response.raise_for_status()
-    markdown_content = response.text
-    # Use pandas to read the Markdown table
-    df = pd.read_csv(
-        io.StringIO(markdown_content),
-        sep="|",
-        skipinitialspace=True,
-        skiprows=0,
-        engine="python",
-    )
-
-    df.columns = [col.strip() for col in df.columns]
-
-    df = df.drop(
-        columns=["Unnamed: 0", "Unnamed: 4", "Client Jar Download URL"], errors="ignore"
-    )
-    df = df.drop(index=0)
-    df["Minecraft Version"] = df["Minecraft Version"].str.strip()
-    df["Server Jar Download URL"] = df["Server Jar Download URL"].str.strip()
-    df.index = df["Minecraft Version"].str.strip()
-    del df["Minecraft Version"]
-
-    vanilla_dict = dict(zip(df.index, df["Server Jar Download URL"]))
+    vanilla_dict = response.json()
     return vanilla_dict
 
 
