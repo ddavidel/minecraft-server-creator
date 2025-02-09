@@ -156,6 +156,14 @@ class MinecraftServer:
         """Returns true if server.properties is in server dir"""
         return os.path.exists(os.path.join(self.server_path, "server.properties"))
 
+    @property
+    def has_mod_folder(self) -> bool:
+        """Returns true if mods folder is in server dir"""
+        if self.jar_type != 2:
+            return False
+
+        return os.path.exists(os.path.join(self.server_path, "mods"))
+
     def accept_eula(self):
         """Accepts eula"""
         eula_path = os.path.join(self.server_path, "eula.txt")
