@@ -36,7 +36,9 @@ def build_base_window(header: ui.header):
     """Builds base window for app"""
     load_head()
     with header:
-        ui.button("", on_click=minimize_window, icon="remove").classes("minimize-button")
+        ui.button("", on_click=minimize_window, icon="remove").classes(
+            "minimize-button"
+        )
         ui.button("", on_click=shutdown, icon="close").classes("close-button")
 
 
@@ -125,6 +127,116 @@ def build_drawer():
         ).classes("drawer-button")
 
 
+def server_detail_drawer(server: MinecraftServer):
+    """Drawer for server details"""
+    with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
+        ui.label(_("Settings")).style("font-size: 35px")
+        ui.button(
+            _("Console"),
+            on_click=None,
+            icon="terminal",
+        ).classes("drawer-button")
+        ui.button(
+            _("Edit server settings"),
+            on_click=popup_edit_server(server=server).open,
+            icon="tune",
+        ).classes("drawer-button")
+        ui.button(
+            _("Edit server properties"),
+            on_click=lambda x: ui.navigate.to(f"/edit/{server.uuid}"),
+            icon="edit_note",
+        ).classes("drawer-button").bind_enabled_from(
+            server,
+            "has_server_properties",
+        )
+        ui.button(
+            _("Manage Mods"),
+            on_click=lambda x: ui.navigate.to(f"/mods/{server.uuid}"),
+            icon="extension",
+        ).classes("drawer-button").bind_enabled_from(
+            server,
+            "has_mod_folder",
+        )
+        ui.button(
+            _("Delete server"),
+            on_click=lambda x: popup_delete_server(server=server),
+            icon="delete",
+        ).classes("drawer-button").style(
+            "background-color: rgb(216, 68, 68) !important"
+        )
+
+        # Stats section
+        ui.space()
+        # ui.label(_("System Usage")).style("font-size: 25px opacity: 0.6;")
+        ui.separator()
+        with ui.grid(rows=2, columns=2).classes("stat-grid"):
+            # RAM usage
+            with ui.chip("", icon="donut_large").bind_text_from(
+                server.monitor, "ram_usage", lambda x: f"{x} MB"
+            ).classes("stat-chip"):
+                ui.tooltip(_("RAM usage")).style("font-size: 15px;")
+            # CPU usage
+            with ui.chip("", icon="memory").bind_text_from(
+                server.monitor, "cpu_usage", lambda x: f"{x} %"
+            ).classes("stat-chip"):
+                ui.tooltip(_("CPU usage")).style("font-size: 15px;")
+            # Disk read
+            with ui.chip("", icon="swap_vert").bind_text_from(
+                server.monitor,
+                "disk_read",
+                lambda x: f"{x} MB/s",
+            ).classes("stat-chip"):
+                ui.tooltip(_("Disk read")).style("font-size: 15px;")
+            # Disk write
+            with ui.chip("", icon="swap_vert").bind_text_from(
+                server.monitor,
+                "disk_write",
+                lambda x: f"{x} MB/s",
+            ).classes("stat-chip"):
+                ui.tooltip(_("Disk write")).style("font-size: 15px;")
+
+
+def build_server_detail_header(
+    header: ui.header,
+    server: MinecraftServer,
+    custom_text: str = None,
+    show_launch_buttons: bool = True,
+    show_back_button: bool = True,
+    show_folder_button: bool = True,
+):
+    """Build server detail header"""
+    with header:
+        # Back button
+        if show_back_button:
+            with ui.button(
+                "", on_click=ui.navigate.back, icon="arrow_back_ios_new"
+            ).classes("back-button"):
+                ui.tooltip(_("Back")).style("font-size: 15px;").props("delay=1500")
+
+        # Server name or custom text
+        with ui.label(custom_text or server.name).style("font-size: 40px;"):
+            if not custom_text:
+                ui.tooltip(server.uuid).style("font-size: 15px;")
+
+        # Folder button
+        if show_folder_button:
+            with ui.button("", icon="folder").style("margin-left: 10px;").on_click(
+                lambda x: open_file_explorer(server.server_path)
+            ).classes("circular-button"):
+                ui.tooltip(_("Open server folder")).style("font-size: 15px;")
+
+        # Launch buttons
+        if show_launch_buttons:
+            with ui.button_group().style("margin-top: 15px"):
+                ui.button(_("Start"), icon="play_arrow").on_click(server.start).classes(
+                    "start-button"
+                ).bind_enabled_from(server, "running", lambda s: not s)
+
+                ui.button(icon="stop").on_click(server.stop).classes(
+                    "stop-button"
+                ).bind_enabled_from(server, "running")
+
+
 @ui.page("/server_detail/{uuid}")
 def server_detail(uuid: str):
     """Page that displays the server details"""
@@ -136,26 +248,7 @@ def server_detail(uuid: str):
     server = get_server_by_uuid(uuid=uuid)
 
     build_base_window(header=header)
-
-    with header:
-        with ui.button(
-            "", on_click=ui.navigate.back, icon="arrow_back_ios_new"
-        ).classes("back-button"):
-            ui.tooltip(_("Back")).style("font-size: 15px;").props("delay=1500")
-        with ui.label(server.name).style("font-size: 40px;"):
-            ui.tooltip(server.uuid).style("font-size: 15px;")
-        with ui.button("", icon="folder").style("margin-left: 10px;").on_click(
-            lambda x: open_file_explorer(server.server_path)
-        ).classes("circular-button"):
-            ui.tooltip(_("Open server folder")).style("font-size: 15px;")
-        with ui.button_group().style("margin-top: 15px"):
-            ui.button(_("Start"), icon="play_arrow").on_click(server.start).classes(
-                "start-button"
-            ).bind_enabled_from(server, "running", lambda s: not s)
-
-            ui.button(icon="stop").on_click(server.stop).classes(
-                "stop-button"
-            ).bind_enabled_from(server, "running")
+    build_server_detail_header(header=header, server=server)
 
     with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
         ui.label(_("Settings")).style("font-size: 35px")
@@ -177,6 +270,15 @@ def server_detail(uuid: str):
             server,
             "has_server_properties",
         )
+        if server.has_mod_folder:
+            ui.button(
+                _("Manage Mods"),
+                on_click=lambda x: ui.navigate.to(f"/mods/{server.uuid}"),
+                icon="extension",
+            ).classes("drawer-button").bind_enabled_from(
+                server,
+                "has_mod_folder",
+            )
         ui.button(
             _("Delete server"),
             on_click=lambda x: popup_delete_server(server=server),
@@ -299,6 +401,7 @@ def edit_server_properties(uuid: str):
     load_head()
     header = ui.header().classes("content-header")
     container = html.section().classes("content")
+    build_base_window(header=header)
 
     server = get_server_by_uuid(uuid=uuid)
     server.load_server_properties()
@@ -332,3 +435,38 @@ def edit_server_properties(uuid: str):
         ui.json_editor({"content": {"json": server.server_properties}}).classes(
             "properties-editor"
         ).on_change(lambda editor: _saving(server=server, editor=editor))
+
+
+@ui.refreshable
+@ui.page("/mods/{uuid}")
+def manage_mods(uuid: str):
+    """
+    Display the mods page to the user to manage mods
+    """
+    # Setup content
+    load_head()
+    header = ui.header().classes("content-header")
+    container = html.section().classes("content")
+    build_base_window(header=header)
+
+    server = get_server_by_uuid(uuid=uuid)
+    build_server_detail_header(
+        header=header,
+        server=server,
+        custom_text=_("Mods on this server"),
+        show_launch_buttons=False,
+        show_folder_button=False,
+    )
+
+    # Drawer
+    with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
+        ui.label(_("Mod Manager")).style("font-size: 35px")
+        ui.button(
+            _("Add Mod"),
+            on_click=None,
+            icon="add_circle",
+        ).classes("drawer-button")
+
+    with container:
+        # Show mods cards
+        pass
