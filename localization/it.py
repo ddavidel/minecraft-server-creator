@@ -69,4 +69,8 @@ translations = {
     "MCSC Settings": "Impostazioni MCSC",
     "Coming soon": "Prossimamente",
     "Version: {version}" : "Versione: {version}",
+    "Manage Mods": "Gestisci Mod",
+    "Mod Manager": "Gestore Mod",
+    "Add Mod": "Aggiungi Mod",
+    "Mods on this server": "Mod su questo server",
 }
