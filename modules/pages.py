@@ -16,10 +16,13 @@ from modules.utils import (
     popup_update_app,
     popup_app_settings,
     open_file_explorer,
+    minimize_window,
 )
 from modules.server import MinecraftServer, server_list, get_server_by_uuid
 from modules.translations import translate as _
 from update import check_for_updates
+
+update_available = check_for_updates()
 
 
 def load_head():
@@ -33,13 +36,51 @@ def build_base_window(header: ui.header):
     """Builds base window for app"""
     load_head()
     with header:
+        ui.button("", on_click=minimize_window, icon="remove").classes("minimize-button")
         ui.button("", on_click=shutdown, icon="close").classes("close-button")
 
 
 def build_drawer():
     """Builds left drawer"""
+    # Setup
+    update_popup = popup_update_app()
+
+    async def _check_updates(update_btn: ui.button):
+        update_btn.disable()
+        global update_available  # pylint: disable=global-statement
+
+        if not update_available:
+            notification = ui.notification(
+                message=_("Checking for updates..."),
+                timeout=3,
+                spinner=True,
+                type="info",
+            )
+            await asyncio.sleep(1)
+
+            if check_for_updates():
+                update_available = True
+                update_btn.style("background-color: rgb(255, 152, 0) !important")
+                notification.message = _("Update available")
+                notification.spinner = False
+                update_btn.set_text(_("Update available"))
+                update_popup.open()
+            else:
+                update_available = False
+                notification.message = _("No updates available")
+                notification.spinner = False
+
+        else:
+            update_popup.open()
+
+        update_btn.enable()
+
+    # Build drawer
     with ui.left_drawer(top_corner=True, fixed=True).classes("left-drawer"):
+        # Logo
         ui.image("/static/logo.png")
+
+        # App Buttons
         ui.button(
             _("Create Server"),
             on_click=popup_create_server().open,
@@ -50,28 +91,38 @@ def build_drawer():
             on_click=home.refresh,
             icon="space_dashboard",
         ).classes("drawer-button")
-        # ui.button(
-        #     _("Settings"),
-        #     on_click=popup_app_settings().open,
-        #     icon="tune",
-        # ).classes("drawer-button")
 
-        update_popup = popup_update_app()
-        if check_for_updates():
+        # Split the buttons
+        ui.space()
+
+        # with ui.expansion(_("Settings"), icon="settings").style(
+        #     "width: 100%; border-radius: 10px;"
+        # ):
+        # Update
+        update_button = ui.button(
+            _("Check for updates"),
+            on_click=lambda x: _check_updates(x.sender),
+            icon="download",
+        ).classes("drawer-button")
+
+        # Automatically check for updates (this could be a user setting)
+        if update_available:
+            update_button.style("background-color: rgb(255, 152, 0) !important")
+            update_button.set_text(_("Update available"))
             update_popup.open()
-            ui.button(
-                "Update available",
-                on_click=update_popup.open,
-                icon="download",
-            ).classes("drawer-button").style(
-                "background-color: rgb(255, 152, 0) !important"
-            )
             ui.notification(
-                message="Update available",
+                message=_("Update available"),
                 timeout=30,
                 spinner=False,
                 type="info",
             )
+
+        # Settings
+        ui.button(
+            _("App Settings"),
+            on_click=popup_app_settings().open,
+            icon="tune",
+        ).classes("drawer-button")
 
 
 @ui.page("/server_detail/{uuid}")
@@ -84,11 +135,12 @@ def server_detail(uuid: str):
 
     server = get_server_by_uuid(uuid=uuid)
 
+    build_base_window(header=header)
+
     with header:
-        ui.button("", on_click=shutdown, icon="close").classes("close-button")
-        with ui.button("", on_click=ui.navigate.back, icon="arrow_back_ios_new").classes(
-            "back-button"
-        ):
+        with ui.button(
+            "", on_click=ui.navigate.back, icon="arrow_back_ios_new"
+        ).classes("back-button"):
             ui.tooltip(_("Back")).style("font-size: 15px;").props("delay=1500")
         with ui.label(server.name).style("font-size: 40px;"):
             ui.tooltip(server.uuid).style("font-size: 15px;")

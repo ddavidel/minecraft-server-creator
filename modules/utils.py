@@ -15,7 +15,7 @@ from modules.server import MinecraftServer, full_stop
 from modules.translations import translate as _
 from modules.user_settings import update_settings
 from config import settings as mcssettings
-from update import Update
+from update import Update, get_current_version
 
 
 server_versions = []
@@ -31,6 +31,19 @@ urls = None  # pylint: disable=invalid-name
 def get_system_total_ram():
     """Total ram on device in GB"""
     return round(psutil.virtual_memory().total / (1024**3))
+
+
+def get_suggested_ram() -> int | float:
+    """
+    Suggested ram for server in GB.
+    This makes sense for most servers since its usually better
+    to have a server with 4~6GB of ram.
+    However, if a server has lots of mods or plugins, it may need more ram.
+    """
+    value = round(get_system_total_ram() / 4)
+    if value > 6:
+        return 6
+    return value
 
 
 async def send_notification(
@@ -72,6 +85,11 @@ def shutdown():
     asyncio.create_task(stop_processes())
 
 
+def minimize_window():
+    """Minimizes the window"""
+    app.native.main_window.minimize()
+
+
 def open_file_explorer(path: str):
     """Opens file explorer"""
     if platform.system() == "Windows":
@@ -90,7 +108,7 @@ def popup_create_server():
     system_ram = get_system_total_ram()
     server_settings = {
         "name": "",
-        "dedicated_ram": round(system_ram / 4),
+        "dedicated_ram": get_suggested_ram(),
         "version": "",
         "jar_type": 0,
         "address": "default",
@@ -116,7 +134,7 @@ def popup_create_server():
             # Reset settings and name
             settings = {
                 "name": "",
-                "dedicated_ram": round(system_ram / 4),
+                "dedicated_ram": get_suggested_ram(),
                 "version": "",
                 "jar_type": 0,
                 "address": "default",
@@ -168,7 +186,7 @@ def popup_create_server():
 
         ui.label(_("Dedicated RAM")).style("font-size: 30px;")
         ui.label(
-            _("Suggested for this device: {value} GB", value=round(system_ram / 4))
+            _("Suggested for this device: {value} GB", value=get_suggested_ram())
         ).style("opacity: 0.6")
         with ui.row().style("width: 100%; margin-top: 10px;"):
             ui.label("1 GB")
@@ -176,7 +194,7 @@ def popup_create_server():
                 max=system_ram,
                 min=1,
                 step=1,
-                value=round(system_ram / 4),
+                value=get_suggested_ram(),
             ).classes("create-server-input").style("width: 75%;").props(
                 "label-always"
             ).bind_value(
@@ -584,8 +602,28 @@ def popup_update_app():
     """Update app popup window"""
     update = Update()
 
-    async def _update_app():
-        asyncio.create_task(update.run())
+    async def _update_app(sender: ui.button):
+        sender.disable()
+        notification = ui.notification(
+            _("Updating"), timeout=None, spinner=True, type="info"
+        )
+        await asyncio.sleep(1)
+
+        # Run update
+        update_task = asyncio.create_task(update.run())
+        await update_task
+
+        notification.spinner = False
+        if update.completed:
+            notification.message = _("Update complete. Restart the app")
+            notification.type = "positive"
+        else:
+            notification.message = _("Something went wrong")
+            notification.type = "negative"
+            sender.enable()
+
+        await asyncio.sleep(5)
+        notification.dismiss()
 
     with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
         with ui.row():
@@ -603,11 +641,9 @@ def popup_update_app():
                 ui.button("Later", on_click=popup.close, icon="close").classes(
                     "normal-secondary-button"
                 )
-                update_btn = (
-                    ui.button("Update Now", icon="download")
-                    .classes("normal-primary-button")
-                    .on_click(_update_app)
-                )
+                ui.button("Update Now", icon="download").classes(
+                    "normal-primary-button"
+                ).on_click(lambda x: _update_app(x.sender))
         return popup
 
 
@@ -618,8 +654,18 @@ def popup_app_settings():
         update_settings(**kwargs)
 
     with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
-        with ui.row():
-            ui.label("App Settings").style("font-size: 30px;")
+        with ui.row().style("width: 100%;"):
+            with ui.grid(rows=1, columns=3):
+                ui.image("/static/logo.png").style("width: 100px;")
+                ui.label(_("Version: {version}", version=get_current_version())).style(
+                    "opacity: 0.6;"
+                )
+                # ui.link("See changelog").style("opacity: 0.6;").on(
+                #     "click", lambda x: ui.navigate.to("/changelog")
+                # )
+
+        # with ui.row():
+        #     ui.label(_("Settings")).style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
             ui.label(
@@ -630,14 +676,18 @@ def popup_app_settings():
             ).style("opacity: 0.6; color: rgb(255, 152, 0)")
 
         with ui.row().style("width: 100%;"):
-            ui.select(
-                mcssettings.AVAILABLE_LANGAGUES,
-                label=_("Language"),
-                with_input=False,
-                on_change=lambda x: _update_settings(language=x.value),
-            ).classes("create-server-input").style("width: 100% !important;").set_value(
-                mcssettings.DEFAULT_LANGUAGE
+            language_select = (
+                ui.select(
+                    mcssettings.AVAILABLE_LANGAGUES,
+                    label=_("Language"),
+                    with_input=False,
+                    on_change=lambda x: _update_settings(language=x.value),
+                )
+                .classes("create-server-input")
+                .style("width: 100% !important;")
             )
+            language_select.set_value(mcssettings.DEFAULT_LANGUAGE)
+            language_select.disable()
 
         with ui.row().style("width: 100%;").style("flex-grow: 1;"):
             ui.button(_("Close"), on_click=popup.close, icon="close").classes(

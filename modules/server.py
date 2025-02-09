@@ -371,7 +371,6 @@ class MinecraftServer:
             # Forge
             await self._stop_forge()
 
-
     async def console_writer(self, command: str):
         """Reads user input and sends it to the server."""
         try:
@@ -512,7 +511,7 @@ class MinecraftServer:
         """Sets set_user_jvm_args for FORGE server. ONLY FORGE SERVERS"""
         if self.jar_type == 2:
             user_jvm_args_path = os.path.join(self.server_path, "user_jvm_args.txt")
-            args = f"-Xmx{self.settings['dedicated_ram']}G"
+            args = f"-Xmx{self.settings['dedicated_ram']}G -Xms{self.settings['dedicated_ram']}G"
 
             # Wait for server folder to be created
             exists = bool(os.path.exists(self.server_path))
