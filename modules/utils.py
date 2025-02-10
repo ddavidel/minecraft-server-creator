@@ -178,9 +178,12 @@ def popup_create_server():
             #     server_settings,
             #     "address",
             # )
-            eula = ui.checkbox(_("Accept EULA (Required)")).style(
-                "margin-top: 15px !important"
-            )
+            eula = ui.checkbox("").style("margin-top: 15px !important")
+            ui.link(
+                _("Accept EULA (Required)"),
+                target="https://www.minecraft.net/en-us/eula",
+                new_tab=True,
+            ).style("margin-top: 25px !important")
 
         ui.separator()
 
@@ -495,7 +498,7 @@ def popup_edit_server(server: MinecraftServer):
                 server.settings, "jar_type"
             ).classes("create-server-input").disable()
             ui.select(
-                server_versions, with_input=True, label=_("Server Version")
+                [server.version], with_input=True, label=_("Server Version")
             ).classes("create-server-input").bind_value(
                 server.settings, "version"
             ).disable()
