@@ -164,6 +164,16 @@ class MinecraftServer:
 
         return os.path.exists(os.path.join(self.server_path, "mods"))
 
+    @property
+    def mods(self) -> dict:
+        """Returns dict with server's mods information"""
+        if self.jar_type == 2:
+            # Scan mod folder (new function scan_folder(path: str))
+            # Gather information on each mod (filename, path).
+            # Build dict
+            raise NotImplementedError("Not yet implemented")
+        return {}
+
     def accept_eula(self):
         """Accepts eula"""
         eula_path = os.path.join(self.server_path, "eula.txt")
