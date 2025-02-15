@@ -44,6 +44,17 @@ def load_servers():
         MinecraftServer(settings=settings, uuid=server_uuid)
 
 
+def scan_folder(path) -> dict:
+    """Scans folder and returns a dictionary"""
+    content_info = {}
+    if os.path.exists(path) and os.path.isdir(path):
+        for filename in os.listdir(path):
+            file_path = os.path.join(path, filename)
+            if os.path.isfile(file_path):
+                content_info[filename] = file_path
+    return content_info
+
+
 class MinecraftServer:
     """
     Minecraft Server class
@@ -171,7 +182,8 @@ class MinecraftServer:
             # Scan mod folder (new function scan_folder(path: str))
             # Gather information on each mod (filename, path).
             # Build dict
-            raise NotImplementedError("Not yet implemented")
+            mods_folder = os.path.join(self.server_path, "mods")
+            return scan_folder(mods_folder)
         return {}
 
     def accept_eula(self):
