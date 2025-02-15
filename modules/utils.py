@@ -2,14 +2,12 @@
 Utils
 """
 
-import io
 import os
 import asyncio
 import platform
 import psutil
 from nicegui import ui, app
 import requests
-import pandas as pd
 
 from modules.server import MinecraftServer, full_stop
 from modules.translations import translate as _
