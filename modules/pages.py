@@ -467,6 +467,12 @@ def manage_mods(uuid: str):
             icon="add_circle",
         ).classes("drawer-button")
 
+    mods_dict = server.mods
     with container:
         # Show mods cards
-        pass
+        for modname in mods_dict.keys():
+            with ui.card().classes("plugin-mod-entry"):
+                with ui.row().style("width: 100%"):
+                    ui.label(modname)
+                    ui.space()
+                    ui.button(_("Delete"), icon="delete_forever").classes("plugin-mod-entry-delete-button")
