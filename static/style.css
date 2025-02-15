@@ -247,3 +247,15 @@
     right: 50px !important;
     outline: transparent !important;
 }
+
+.plugin-mod-entry {
+    width: 100% !important;
+    height: fit-content;
+    border-radius: 10px !important;
+    text-decoration: none;
+    font-size: 25px;
+    color: inherit;
+}
+.plugin-mod-entry-delete-button {
+    background-color: rgb(216, 68, 68) !important;
+}
