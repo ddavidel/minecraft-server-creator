@@ -2,6 +2,7 @@
 Pages
 """
 
+import os
 import asyncio
 from nicegui import ui, html
 
@@ -203,6 +204,8 @@ def build_server_detail_header(
     show_launch_buttons: bool = True,
     show_back_button: bool = True,
     show_folder_button: bool = True,
+    folder_button_path: str = None,
+    folder_button_tooltip: str = None,
 ):
     """Build server detail header"""
     with header:
@@ -221,9 +224,11 @@ def build_server_detail_header(
         # Folder button
         if show_folder_button:
             with ui.button("", icon="folder").style("margin-left: 10px;").on_click(
-                lambda x: open_file_explorer(server.server_path)
+                lambda x: open_file_explorer(folder_button_path or server.server_path)
             ).classes("circular-button"):
-                ui.tooltip(_("Open server folder")).style("font-size: 15px;")
+                ui.tooltip(folder_button_tooltip or _("Open server folder")).style(
+                    "font-size: 15px;"
+                )
 
         # Launch buttons
         if show_launch_buttons:
@@ -455,7 +460,9 @@ def manage_mods(uuid: str):
         server=server,
         custom_text=_("Mods on this server"),
         show_launch_buttons=False,
-        show_folder_button=False,
+        show_folder_button=True,
+        folder_button_path=os.path.join(server.server_path, "mods"),
+        folder_button_tooltip=_("Open mods folder"),
     )
 
     # Drawer
@@ -475,4 +482,6 @@ def manage_mods(uuid: str):
                 with ui.row().style("width: 100%"):
                     ui.label(modname)
                     ui.space()
-                    ui.button(_("Delete"), icon="delete_forever").classes("plugin-mod-entry-delete-button")
+                    ui.button(_("Remove"), icon="delete_forever").classes(
+                        "plugin-mod-entry-delete-button"
+                    )
