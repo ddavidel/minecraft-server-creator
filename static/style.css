@@ -255,7 +255,9 @@
     text-decoration: none;
     font-size: 25px;
     color: inherit;
+    margin-bottom: 15px;
 }
 .plugin-mod-entry-delete-button {
     background-color: rgb(216, 68, 68) !important;
+    border-radius: 10px !important;
 }
