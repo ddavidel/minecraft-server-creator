@@ -73,4 +73,6 @@ translations = {
     "Mod Manager": "Gestore Mod",
     "Add Mod": "Aggiungi Mod",
     "Mods on this server": "Mod su questo server",
+    "Open mods folder": "Apri cartella delle mod",
+    "Remove": "Rimuovi",
 }
