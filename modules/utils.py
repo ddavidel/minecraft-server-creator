@@ -627,18 +627,18 @@ def popup_update_app():
 
     with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
         with ui.row():
-            ui.label("Update Available").style("font-size: 30px;")
+            ui.label(_("Update Available")).style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
             ui.label(
-                "A new version of the app is available. Do you want to update now?"
+                _("A new version of the app is available. Do you want to update now?")
             ).style("opacity: 0.6")
 
             with ui.row().style("width: 100%;"):
                 ui.label("").bind_text_from(update, "status")
 
             with ui.row().style("width: 100%;").style("flex-grow: 1;"):
-                ui.button("Later", on_click=popup.close, icon="close").classes(
+                ui.button(_("Later"), on_click=popup.close, icon="close").classes(
                     "normal-secondary-button"
                 )
                 ui.button("Update Now", icon="download").classes(
@@ -687,7 +687,6 @@ def popup_app_settings():
                 .style("width: 100% !important;")
             )
             language_select.set_value(mcssettings.DEFAULT_LANGUAGE)
-            language_select.disable()
 
         with ui.row().style("width: 100%;").style("flex-grow: 1;"):
             ui.button(_("Close"), on_click=popup.close, icon="close").classes(
