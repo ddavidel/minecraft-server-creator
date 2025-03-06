@@ -14,6 +14,7 @@ from nicegui import binding, ui
 
 from config import settings as mcssettings
 from modules.translations import translate as _
+from modules.classes import ProcessMonitor
 
 
 server_list = []
@@ -62,6 +63,7 @@ class MinecraftServer:
         self.process = None
         self.log = None
         self.server_properties = {}
+        self.monitor = ProcessMonitor()
 
         if not uuid:
             self._create_server()
@@ -131,7 +133,7 @@ class MinecraftServer:
             # Forge
             return os.path.join(
                 self.server_path,
-                f"minecraft_server.{self.version.split("-")[0]}.jar",
+                f"minecraft_server.{self.version.split('-')[0]}.jar",
             )
 
     @property
@@ -261,6 +263,10 @@ class MinecraftServer:
                 stderr=asyncio.subprocess.STDOUT,
             )
 
+            # Start monitoring the process
+            self.monitor.process = self.process
+            monitor_task = asyncio.create_task(self.monitor.run())
+
             # Start tasks for reading output and taking input
             output_task = asyncio.create_task(self._console_reader())
             # input_task = asyncio.create_task(self.console_writer())
@@ -272,6 +278,7 @@ class MinecraftServer:
 
             # Cancel input and output tasks once the server stops
             await asyncio.gather(output_task, return_exceptions=True)
+            await asyncio.gather(monitor_task, return_exceptions=True)
 
         except FileNotFoundError as e:
             print(f"Error: {e}")
@@ -319,6 +326,7 @@ class MinecraftServer:
                 self.process = None
                 self.running = False
                 self.stopping = False
+                self.monitor.stop()
         else:
             print("Server is not running.")
 
@@ -345,6 +353,7 @@ class MinecraftServer:
                 self.process = None
                 self.running = False
                 self.stopping = False
+                self.monitor.stop()
         else:
             print("Server is not running.")
 
@@ -361,7 +370,6 @@ class MinecraftServer:
         elif self.jar_type == 2:
             # Forge
             await self._stop_forge()
-
 
     async def console_writer(self, command: str):
         """Reads user input and sends it to the server."""
@@ -503,7 +511,7 @@ class MinecraftServer:
         """Sets set_user_jvm_args for FORGE server. ONLY FORGE SERVERS"""
         if self.jar_type == 2:
             user_jvm_args_path = os.path.join(self.server_path, "user_jvm_args.txt")
-            args = f"-Xmx{self.settings['dedicated_ram']}G"
+            args = f"-Xmx{self.settings['dedicated_ram']}G -Xms{self.settings['dedicated_ram']}G"
 
             # Wait for server folder to be created
             exists = bool(os.path.exists(self.server_path))
@@ -539,6 +547,10 @@ class MinecraftServer:
                 stderr=asyncio.subprocess.STDOUT,
             )
 
+            # Start monitoring the process
+            self.monitor.process = self.process
+            monitor_task = asyncio.create_task(self.monitor.run())
+
             # Start tasks for reading output and taking input
             output_task = asyncio.create_task(self._console_reader())
             # input_task = asyncio.create_task(self.console_writer())
@@ -550,6 +562,7 @@ class MinecraftServer:
 
             # Cancel input and output tasks once the server stops
             await asyncio.gather(output_task, return_exceptions=True)
+            await asyncio.gather(monitor_task, return_exceptions=True)
 
         except FileNotFoundError as e:
             print(f"Error: {e}")
