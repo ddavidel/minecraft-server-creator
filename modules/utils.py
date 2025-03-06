@@ -687,7 +687,6 @@ def popup_app_settings():
                 .style("width: 100% !important;")
             )
             language_select.set_value(mcssettings.DEFAULT_LANGUAGE)
-            language_select.disable()
 
         with ui.row().style("width: 100%;").style("flex-grow: 1;"):
             ui.button(_("Close"), on_click=popup.close, icon="close").classes(
