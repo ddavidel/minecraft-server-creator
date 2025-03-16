@@ -22,6 +22,7 @@ from modules.utils import (
 from modules.server import MinecraftServer, server_list, get_server_by_uuid
 from modules.translations import translate as _
 from update import check_for_updates
+from modules.popups import popup_remove_mod
 
 update_available = check_for_updates()
 
@@ -477,11 +478,15 @@ def manage_mods(uuid: str):
     mods_dict = server.mods
     with container:
         # Show mods cards
-        for modname in mods_dict.keys():
+        for modname, path in mods_dict.items():
             with ui.card().classes("plugin-mod-entry"):
                 with ui.row().style("width: 100%"):
                     ui.label(modname)
                     ui.space()
                     ui.button(_("Remove"), icon="delete_forever").classes(
                         "plugin-mod-entry-delete-button"
+                    ).on_click(
+                        lambda x: popup_remove_mod(addon_name=modname, path=path).open()
                     )
+    # When user clicks on remove button, ask for confirmation and then
+    # open a popup with a text saying removing [modname]... spinner etc.
