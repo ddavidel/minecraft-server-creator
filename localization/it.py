@@ -75,4 +75,9 @@ translations = {
     "Mods on this server": "Mod su questo server",
     "Open mods folder": "Apri cartella delle mod",
     "Remove": "Rimuovi",
+    "Are you sure you want to remove {name}" : "Sei sicuro di voler rimuovere {name}",
+    "This action is irreversible": "Questa azione è irreversibile",
+    "File {path} not found": "File {path} non trovato",
+    "Something went wrong wile removing the file": "Qualcosa è andato storto durante la rimozione del file",
+    "Removing {name}" : "Rimozione di {name}",
 }
