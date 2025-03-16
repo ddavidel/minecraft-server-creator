@@ -46,14 +46,24 @@ def get_suggested_ram() -> int | float:
 
 async def send_notification(
     msg: str,
+    instance: ui.notification = None,
     timeout: None | int = 3,
     spinner: bool = False,
     severity: str = None,
-):
+) -> ui.notification:
     """Sends a notification to the user"""
-    if severity not in (None, "positive", "warning", "negative"):
+    if severity not in (None, "positive", "warning", "negative", "info"):
         severity = None
-    ui.notification(message=msg, timeout=timeout, spinner=spinner, type=severity)
+
+    if instance:
+        instance.spinner = spinner
+        instance.message = msg
+        instance.type = severity
+        return instance
+    else:
+        return ui.notification(
+            message=msg, timeout=timeout, spinner=spinner, type=severity
+        )
 
 
 async def stop_processes():
