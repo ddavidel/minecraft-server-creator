@@ -18,7 +18,8 @@ from modules.utils import (
     open_file_explorer,
     minimize_window,
 )
-from modules.server import MinecraftServer, server_list, get_server_by_uuid
+from modules.servers.models import MinecraftServer
+from modules.servers.utils import get_server_by_uuid, server_list
 from modules.translations import translate as _
 from update import check_for_updates
 
