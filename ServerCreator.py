@@ -8,7 +8,7 @@ from modules.pages import (
     build_drawer,
     home,
 )
-from modules.server import load_servers
+from modules.servers.utils import load_servers
 from modules.utils import load_server_versions
 
 
