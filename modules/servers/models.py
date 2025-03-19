@@ -3,7 +3,6 @@ Minecraft Server Module
 """
 
 import asyncio
-import subprocess
 import json
 import os
 import shutil
@@ -17,37 +16,13 @@ from modules.translations import translate as _
 from modules.classes import ProcessMonitor
 
 
-server_list = []
-
 global_settings = {}
-
-
-def load_servers():
-    """
-    Function to load server as a MinecraftServer class instance
-    """
-    if not os.path.exists(mcssettings.SERVERS_JSON_PATH):
-        with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
-            file.write("{}")
-            file.flush()
-
-        os.makedirs("servers", exist_ok=True)
-        return
-
-    with open(mcssettings.SERVERS_JSON_PATH, "r", encoding="utf-8") as file:
-        servers = json.load(file)
-
-    global global_settings  # pylint: disable=global-statement
-    global_settings = servers
-
-    for server_uuid, settings in servers.items():
-        MinecraftServer(settings=settings, uuid=server_uuid)
 
 
 class MinecraftServer:
     """
-    Minecraft Server class
-    This acts as a model for each server
+    Base Minecraft Server class
+    This acts as a model for each type of server
     """
 
     name = binding.BindableProperty()
@@ -68,10 +43,11 @@ class MinecraftServer:
         if not uuid:
             self._create_server()
 
-        # add self to server_list
-        server_list.append(self)
-
     def __repr__(self):
+        if self.jar_type == 0:
+            return f"<JavaServer: {self.name!r} addr={self.socket_address}>"
+        if self.jar_type == 2:
+            return f"<ForgeServer: {self.name!r} addr={self.socket_address}>"
         return f"<MinecraftServer: {self.name!r} addr={self.socket_address}>"
 
     def __str__(self):
@@ -139,17 +115,7 @@ class MinecraftServer:
     @property
     def server_path(self) -> str:
         """server's jar path"""
-        if self.jar_type == 0:
-            # Vanilla
-            return self.settings["folder_path"]
-
-        if self.jar_type == 1:
-            # Spigot
-            raise NotImplementedError()
-
-        if self.jar_type == 2:
-            # Forge
-            return os.path.join(self.settings["folder_path"], "server")
+        return self.settings["folder_path"]
 
     @property
     def has_server_properties(self) -> bool:
@@ -163,14 +129,9 @@ class MinecraftServer:
         with open(eula_path, mode="w", encoding="utf-8") as eula:
             eula.write("eula=true")
 
-    def _create_server(self):
+    def _create_server_folder(self):
         """
-        Actually creates the server on the device
-        Order of actions:
-        - create server folder
-        - download jar and place it inside folder
-        - eula
-        - create start.bat (maybe not?)
+        Creates the server folder
         """
         self.settings["uuid"] = str(uuid4())
         self.settings["folder_path"] = os.path.join(
@@ -180,18 +141,20 @@ class MinecraftServer:
         os.mkdir(self.settings["folder_path"])
         assert os.path.exists(self.settings["folder_path"])
 
+    def _create_server(self):
+        """
+        Actually creates the server on the device
+        Order of actions:
+        - create server folder
+        - download jar and place it inside folder
+        - eula
+        - create start.bat (maybe not?)
+        """
+        self._create_server_folder()
         # download jar
         self._download_jar()
-
-        # Additional steps for forge
-        if self.jar_type == 2:
-            # install server
-            self._init_forge_server()
-            self._set_user_jvm_args()
-
         # accept eula
         self.accept_eula()
-
         # save into server.json
         self.save()
 
@@ -240,7 +203,7 @@ class MinecraftServer:
 
         print(f"Server {self.uuid} saved!")
 
-    async def _start_jar(self):
+    async def start(self):
         """Starts the server"""
         self.starting = True
         try:
@@ -290,21 +253,7 @@ class MinecraftServer:
             self.starting = False
             self.running = False
 
-    async def start(self):
-        """Proxy function to start the server"""
-        if self.jar_type == 0:
-            # Vanilla
-            await self._start_jar()
-
-        elif self.jar_type == 1:
-            # Spigot
-            raise NotImplementedError("Not yet implemented.")
-
-        elif self.jar_type == 2:
-            # Forge
-            await self._start_forge()
-
-    async def _stop_jar(self):
+    async def stop(self):
         """Stops the server"""
         if self.process and self.running:
             print("Stopping the server...")
@@ -329,47 +278,6 @@ class MinecraftServer:
                 self.monitor.stop()
         else:
             print("Server is not running.")
-
-    async def _stop_forge(self):
-        """
-        Stops the server. Same as regular stop but
-        without waiting for the process to finish.
-        """
-        if self.process and self.running:
-            print("Stopping the server...")
-            self.running = False
-            self.stopping = True
-            try:
-                # Send the 'stop' command to the server
-                if self.process.stdin:
-                    self.process.stdin.write(b"stop\n")
-                    await self.process.stdin.drain()
-
-                print("Server stopped.")
-            except Exception as e:
-                print(f"Error while stopping the server: {e}")
-            finally:
-                # Ensure process cleanup
-                self.process = None
-                self.running = False
-                self.stopping = False
-                self.monitor.stop()
-        else:
-            print("Server is not running.")
-
-    async def stop(self):
-        """Proxy function to stop the server"""
-        if self.jar_type == 0:
-            # Vanilla
-            await self._stop_jar()
-
-        elif self.jar_type == 1:
-            # Spigot
-            raise NotImplementedError("Not yet implemented.")
-
-        elif self.jar_type == 2:
-            # Forge
-            await self._stop_forge()
 
     async def console_writer(self, command: str):
         """Reads user input and sends it to the server."""
@@ -483,121 +391,3 @@ class MinecraftServer:
             # ).replace("}", "").split(",")[0].strip().split(": ")
 
         return False
-
-    def _init_forge_server(self):
-        """Initializes forge server"""
-        # install server
-        assert self.jar_type == 2
-        try:
-            cmd = [
-                "java",
-                "-jar",
-                "server.jar",
-                "--installServer",
-                "server",
-            ]
-
-            # Start the subprocess
-            subprocess.run(
-                cmd,
-                cwd=self.settings["folder_path"],
-                check=False,
-            )
-
-        except Exception as e:
-            print(f"Error while initializing forge server {self.uuid}: {e}")
-
-    def _set_user_jvm_args(self):
-        """Sets set_user_jvm_args for FORGE server. ONLY FORGE SERVERS"""
-        if self.jar_type == 2:
-            user_jvm_args_path = os.path.join(self.server_path, "user_jvm_args.txt")
-            args = f"-Xmx{self.settings['dedicated_ram']}G -Xms{self.settings['dedicated_ram']}G"
-
-            # Wait for server folder to be created
-            exists = bool(os.path.exists(self.server_path))
-            while not exists:
-                exists = bool(os.path.exists(self.server_path))
-
-            if os.path.exists(user_jvm_args_path):
-                with open(user_jvm_args_path, "w", encoding="utf-8") as file:
-                    file.write(args)
-                    file.flush()
-
-            else:
-                raise ValueError(_("Unsupported Forge Version. THIS IS NOT A BUG!"))
-
-        else:
-            raise ValueError("This is not a Forge server")
-
-    async def _start_forge(self):
-        """Starts the forge server"""
-        self.starting = True
-        try:
-            if not os.path.exists(os.path.join(self.server_path, "run.bat")):
-                raise ValueError(_("Unsupported Forge Version. THIS IS NOT A BUG!"))
-
-            cmd = ["cmd.exe", "/c", "run.bat"]
-
-            # Start the subprocess
-            self.process = await asyncio.create_subprocess_exec(
-                *cmd,
-                cwd=self.server_path,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-            )
-
-            # Start monitoring the process
-            self.monitor.process = self.process
-            monitor_task = asyncio.create_task(self.monitor.run())
-
-            # Start tasks for reading output and taking input
-            output_task = asyncio.create_task(self._console_reader())
-            # input_task = asyncio.create_task(self.console_writer())
-
-            # Wait for the server process to finish
-            await self.process.wait()
-
-            self.running = False
-
-            # Cancel input and output tasks once the server stops
-            await asyncio.gather(output_task, return_exceptions=True)
-            await asyncio.gather(monitor_task, return_exceptions=True)
-
-        except FileNotFoundError as e:
-            print(f"Error: {e}")
-
-        except Exception as e:
-            print(f"An error occurred: {e}")
-
-        finally:
-            self.starting = False
-            self.running = False
-
-
-def get_server_by_name(server_name: str) -> MinecraftServer | None:
-    """
-    Returns server instance found by name.
-    Probably not gonna be used
-    """
-    for server in server_list:
-        if server.name == server_name:
-            return server
-    return None
-
-
-def get_server_by_uuid(uuid: str) -> MinecraftServer | None:
-    """
-    Returns server instance by by uuid.
-    """
-    for server in server_list:
-        if server.uuid == uuid:
-            return server
-    return None
-
-
-async def full_stop():
-    """Ensures all servers are stopped"""
-    for server in server_list:
-        if server.running and server.process:
-            await server.stop()
