@@ -4,17 +4,9 @@ Forge server module
 
 import asyncio
 import subprocess
-import json
 import os
-import shutil
-from uuid import uuid4
-import numpy as np
-import requests
-from nicegui import binding, ui
 
-from config import settings as mcssettings
 from modules.translations import translate as _
-from modules.classes import ProcessMonitor
 
 from modules.servers.models import MinecraftServer
 
@@ -139,6 +131,8 @@ class ForgeServer(MinecraftServer):
                 # Send the 'stop' command to the server
                 if self.process.stdin:
                     self.process.stdin.write(b"stop\n")
+                    await asyncio.sleep(2)
+                    self.process.stdin.write(b"\n")
                     await self.process.stdin.drain()
 
                 print("Server stopped.")
