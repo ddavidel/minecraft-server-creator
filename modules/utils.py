@@ -494,8 +494,8 @@ def popup_edit_server(server: MinecraftServer):
                 server.settings, "jar_type"
             ).classes("create-server-input").disable()
             ui.select(
-                server_versions, with_input=True, label=_("Server Version")
-            ).classes("create-server-input").bind_value(
+                urls.get_versions_for_type(server.jar_type), with_input=True, label=_("Server Version")
+            ).classes("create-server-input").bind_value_from(
                 server.settings, "version"
             ).disable()
 
