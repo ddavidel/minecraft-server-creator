@@ -16,6 +16,7 @@ from modules.translations import translate as _
 from modules.classes import ProcessMonitor
 
 
+server_list = []
 global_settings = {}
 
 
@@ -42,6 +43,9 @@ class MinecraftServer:
 
         if not uuid:
             self._create_server()
+
+        # Add to server list
+        server_list.append(self)
 
     def __repr__(self):
         if self.jar_type == 0:
@@ -391,3 +395,28 @@ class MinecraftServer:
             # ).replace("}", "").split(",")[0].strip().split(": ")
 
         return False
+
+
+# Some functions
+def get_server_list() -> list[MinecraftServer]:
+    """Returns server list"""
+    return server_list
+
+def set_server_list(servers: list[MinecraftServer]):
+    """Sets server list"""
+    global server_list  # pylint: disable=global-statement
+    server_list = servers
+
+def add_server_to_list(server: MinecraftServer):
+    """Adds server to server list"""
+    if server not in server_list:
+        server_list.append(server)
+
+def get_global_settings() -> dict:
+    """Returns global settings"""
+    return global_settings
+
+def set_global_settings(settings: dict):
+    """Sets global settings"""
+    global global_settings  # pylint: disable=global-statement
+    global_settings = settings
