@@ -7,7 +7,13 @@ import os
 
 from config import settings as mcssettings
 from modules.translations import translate as _
-from modules.servers.models import MinecraftServer
+from modules.servers.models import (
+    MinecraftServer,
+    get_server_list,
+    get_global_settings,
+    set_global_settings,
+    add_server_to_list,
+)
 from modules.servers.forge import ForgeServer
 from modules.servers.java import JavaServer
 
@@ -17,10 +23,6 @@ TYPE_TO_CLASS = {
     # 1: SpigotServer,
     2: ForgeServer,
 }
-
-server_list = []
-
-global_settings = {}
 
 
 def create_server(settings: dict):
@@ -47,14 +49,13 @@ def load_servers():
     with open(mcssettings.SERVERS_JSON_PATH, "r", encoding="utf-8") as file:
         servers = json.load(file)
 
-    global global_settings  # pylint: disable=global-statement
-    global_settings = servers
+    # Set global settings
+    set_global_settings(servers)
 
     for server_uuid, settings in servers.items():
-        instance = TYPE_TO_CLASS[settings["jar_type"]](
+        TYPE_TO_CLASS[settings["jar_type"]](
             settings=settings, uuid=server_uuid
         )
-        server_list.append(instance)
 
 
 def get_server_by_name(server_name: str) -> MinecraftServer | None:
@@ -62,7 +63,7 @@ def get_server_by_name(server_name: str) -> MinecraftServer | None:
     Returns server instance found by name.
     Probably not gonna be used
     """
-    for server in server_list:
+    for server in get_server_list():
         if server.name == server_name:
             return server
     return None
@@ -72,7 +73,7 @@ def get_server_by_uuid(uuid: str) -> MinecraftServer | None:
     """
     Returns server instance by by uuid.
     """
-    for server in server_list:
+    for server in get_server_list():
         if server.uuid == uuid:
             return server
     return None
@@ -80,6 +81,6 @@ def get_server_by_uuid(uuid: str) -> MinecraftServer | None:
 
 async def full_stop():
     """Ensures all servers are stopped"""
-    for server in server_list:
+    for server in get_server_list():
         if server.running and server.process:
             await server.stop()
