@@ -117,10 +117,10 @@ class Update:
         # Download file
         content = self.download_file(filename=filename, path=path)
 
-        os.makedirs(os.path.join(self.app_dir, path), exist_ok=True)
+        os.makedirs(os.path.join(self.app_dir, *path.split("/")), exist_ok=True)
 
         # Overwrite file
-        with open(os.path.join(self.app_dir, path, filename), "wb") as file:
+        with open(os.path.join(self.app_dir, *path.split("/"), filename), "wb") as file:
             file.write(content)
             file.flush()
 
