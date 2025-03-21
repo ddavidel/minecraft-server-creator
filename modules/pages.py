@@ -20,6 +20,7 @@ from modules.utils import (
     minimize_window,
 )
 from modules.servers.models import MinecraftServer, get_server_list
+from modules.servers.forge import ForgeServer
 from modules.servers.utils import get_server_by_uuid
 from modules.translations import translate as _
 from update import check_for_updates
@@ -152,14 +153,12 @@ def server_detail_drawer(server: MinecraftServer):
             server,
             "has_server_properties",
         )
-        ui.button(
-            _("Manage Mods"),
-            on_click=lambda x: ui.navigate.to(f"/mods/{server.uuid}"),
-            icon="extension",
-        ).classes("drawer-button").bind_enabled_from(
-            server,
-            "has_mod_folder",
-        )
+        if isinstance(server, ForgeServer):
+            ui.button(
+                _("Manage Mods"),
+                on_click=lambda x: ui.navigate.to(f"/mods/{server.uuid}"),
+                icon="extension",
+            ).classes("drawer-button")
         ui.button(
             _("Delete server"),
             on_click=lambda x: popup_delete_server(server=server),
@@ -277,15 +276,12 @@ def server_detail(uuid: str):
             server,
             "has_server_properties",
         )
-        if server.has_mod_folder:
+        if isinstance(server, ForgeServer):
             ui.button(
                 _("Manage Mods"),
                 on_click=lambda x: ui.navigate.to(f"/mods/{server.uuid}"),
                 icon="extension",
-            ).classes("drawer-button").bind_enabled_from(
-                server,
-                "has_mod_folder",
-            )
+            ).classes("drawer-button")
         ui.button(
             _("Delete server"),
             on_click=lambda x: popup_delete_server(server=server),

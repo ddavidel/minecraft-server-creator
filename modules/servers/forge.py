@@ -7,14 +7,25 @@ import subprocess
 import os
 
 from modules.translations import translate as _
-
 from modules.servers.models import MinecraftServer
+
+
+def scan_folder(path) -> dict:
+    """Scans folder and returns a dictionary"""
+    content_info = {}
+    if os.path.exists(path) and os.path.isdir(path):
+        for filename in os.listdir(path):
+            file_path = os.path.join(path, filename)
+            if os.path.isfile(file_path):
+                content_info[filename] = file_path
+    return content_info
 
 
 class ForgeServer(MinecraftServer):
     """
     Forge server class
     """
+
     @property
     def jar_path(self) -> str:
         """server's jar path"""
@@ -27,6 +38,14 @@ class ForgeServer(MinecraftServer):
     def server_path(self) -> str:
         """server's jar path"""
         return os.path.join(self.settings["folder_path"], "server")
+
+    @property
+    def mods(self) -> dict:
+        """Returns dict with server's mods information"""
+        if self.jar_type == 2:
+            mods_folder = os.path.join(self.server_path, "mods")
+            return scan_folder(mods_folder)
+        return {}
 
     def _init_forge_server(self):
         """Initializes forge server"""
