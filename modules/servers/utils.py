@@ -10,9 +10,7 @@ from modules.translations import translate as _
 from modules.servers.models import (
     MinecraftServer,
     get_server_list,
-    get_global_settings,
     set_global_settings,
-    add_server_to_list,
 )
 from modules.servers.forge import ForgeServer
 from modules.servers.java import JavaServer
@@ -38,6 +36,7 @@ def load_servers():
     """
     Function to load server as a MinecraftServer class instance
     """
+    print("Loading servers...")
     if not os.path.exists(mcssettings.SERVERS_JSON_PATH):
         with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
             file.write("{}")
@@ -53,6 +52,7 @@ def load_servers():
     set_global_settings(servers)
 
     for server_uuid, settings in servers.items():
+        print(f"Loading {server_uuid}...")
         TYPE_TO_CLASS[settings["jar_type"]](
             settings=settings, uuid=server_uuid
         )
