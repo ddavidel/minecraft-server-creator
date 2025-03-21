@@ -1,3 +1,4 @@
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey)](./LICENSE)
 # MCSC - Minecraft Server Creator
 MCSC is a user-friendly tool written in Python with a GUI that simplifies the process of creating and managing Minecraft servers. Whether you're a beginner or experienced, MCSC allows you to easily set up, run, and control multiple Minecraft servers from a single interface.
 > **Warning**: MCSC is still in active development, features may not be stable.

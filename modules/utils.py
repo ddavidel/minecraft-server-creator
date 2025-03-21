@@ -9,7 +9,8 @@ import psutil
 from nicegui import ui, app
 import requests
 
-from modules.server import MinecraftServer, full_stop
+from modules.servers.models import MinecraftServer
+from modules.servers.utils import full_stop, create_server
 from modules.translations import translate as _
 from modules.user_settings import update_settings
 from config import settings as mcssettings
@@ -137,7 +138,7 @@ def popup_create_server():
             assert settings.get("version", None), _("Server version can't be empty")
 
             # Initialize server
-            MinecraftServer(settings=settings.copy())
+            create_server(settings=settings.copy())
 
             # Reset settings and name
             settings = {
@@ -638,18 +639,18 @@ def popup_update_app():
 
     with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
         with ui.row():
-            ui.label("Update Available").style("font-size: 30px;")
+            ui.label(_("Update Available")).style("font-size: 30px;")
 
         with ui.row().style("width: 100%;"):
             ui.label(
-                "A new version of the app is available. Do you want to update now?"
+                _("A new version of the app is available. Do you want to update now?")
             ).style("opacity: 0.6")
 
             with ui.row().style("width: 100%;"):
                 ui.label("").bind_text_from(update, "status")
 
             with ui.row().style("width: 100%;").style("flex-grow: 1;"):
-                ui.button("Later", on_click=popup.close, icon="close").classes(
+                ui.button(_("Later"), on_click=popup.close, icon="close").classes(
                     "normal-secondary-button"
                 )
                 ui.button("Update Now", icon="download").classes(
@@ -698,7 +699,6 @@ def popup_app_settings():
                 .style("width: 100% !important;")
             )
             language_select.set_value(mcssettings.DEFAULT_LANGUAGE)
-            language_select.disable()
 
         with ui.row().style("width: 100%;").style("flex-grow: 1;"):
             ui.button(_("Close"), on_click=popup.close, icon="close").classes(

@@ -19,7 +19,8 @@ from modules.utils import (
     open_file_explorer,
     minimize_window,
 )
-from modules.server import MinecraftServer, server_list, get_server_by_uuid
+from modules.servers.models import MinecraftServer, get_server_list
+from modules.servers.utils import get_server_by_uuid
 from modules.translations import translate as _
 from update import check_for_updates
 from modules.popups import popup_remove_mod
@@ -374,6 +375,7 @@ def home(header: ui.header, container):
     container.clear()
     header.clear()
     build_base_window(header=header)
+    server_list = get_server_list()
 
     with header:
         ui.label(_("Your servers")).style("font-size: 40px;")

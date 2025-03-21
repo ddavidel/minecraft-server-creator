@@ -1,7 +1,8 @@
 """
 Update module for MCSC
 """
-
+import sys
+import subprocess
 import os
 import importlib
 import shutil
@@ -90,6 +91,9 @@ class Update:
                     filename=file["filename"].strip(), path=file["path"].strip()
                 )
 
+            # Post update routines
+            self.post_update_routines()
+
             self.status = "Update complete"
             self.completed = True
 
@@ -113,10 +117,10 @@ class Update:
         # Download file
         content = self.download_file(filename=filename, path=path)
 
-        os.makedirs(os.path.join(self.app_dir, path), exist_ok=True)
+        os.makedirs(os.path.join(self.app_dir, *path.split("/")), exist_ok=True)
 
         # Overwrite file
-        with open(os.path.join(self.app_dir, path, filename), "wb") as file:
+        with open(os.path.join(self.app_dir, *path.split("/"), filename), "wb") as file:
             file.write(content)
             file.flush()
 
@@ -139,3 +143,31 @@ class Update:
 
         self.status = "App backed up"
         print(f"App backed up to: {zip_name}")
+
+    def post_update_routines(self):
+        """Execute post update routines"""
+        self.status = "Running post-update routines"
+        print("\nRunning post-update routines\n")
+
+        # Run routines
+        self._routine_install_requirements()
+
+        self.status = "\nPost-update routines completed\n"
+        print("\nPost-update routines completed\n")
+
+    def _routine_install_requirements(self):
+        """Installs requirements from requirements.txt file"""
+        self.status = "Updating requirements"
+        print("Updating requirements")
+        subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "-r",
+            "requirements.txt",
+            "--no-warn-script-location",
+        ],
+        check=True,
+    )
