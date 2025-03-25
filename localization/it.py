@@ -72,6 +72,8 @@ translations = {
     "Update Now": "Aggiorna Ora",
     "A new version of the app is available. Do you want to update now?": "È disponibile una nuova versione dell'app. Vuoi aggiornare ora?",
     "Later": "Dopo",
+    "Saving": "Salvataggio in corso",
+    "Settings saved": "Impostazioni salvate",
     "There are still servers running. Are you sure you want to quit?" : "Ci sono ancora server in esecuzione. Sei sicuro di voler uscire?",
     "No, take me back": "No, riportami indietro",
     "Yes, quit": "Si, esci",

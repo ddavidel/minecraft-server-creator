@@ -682,7 +682,25 @@ def popup_app_settings():
     """App settings popup window"""
 
     async def _update_settings(**kwargs):
-        update_settings(**kwargs)
+        n = ui.notification(
+            message=_("Saving"),
+            spinner=True,
+            timeout=None,
+            type="info",
+        )
+        await asyncio.sleep(0.5)
+        try:
+            update_settings(**kwargs)
+            n.spinner = False
+            n.type = "positive"
+            n.message = _("Settings saved")
+        except Exception as e:
+            n.spinner = False
+            n.type = "negative"
+            n.message = str(e)
+        finally:
+            await asyncio.sleep(3)
+            n.dismiss()
 
     with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
         with ui.row().style("width: 100%;"):
@@ -712,12 +730,13 @@ def popup_app_settings():
                     mcssettings.AVAILABLE_LANGAGUES,
                     label=_("Language"),
                     with_input=False,
-                    on_change=lambda x: _update_settings(language=x.value),
+                    # on_change=lambda x: _update_settings(language=x.value),
                 )
                 .classes("create-server-input")
                 .style("width: 100% !important;")
             )
             language_select.set_value(mcssettings.DEFAULT_LANGUAGE)
+            language_select.on_value_change(lambda x: _update_settings(language=x.value))
 
         with ui.row().style("width: 100%;").style("flex-grow: 1;"):
             ui.button(_("Close"), on_click=popup.close, icon="close").classes(
