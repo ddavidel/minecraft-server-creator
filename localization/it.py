@@ -72,4 +72,6 @@ translations = {
     "Update Now": "Aggiorna Ora",
     "A new version of the app is available. Do you want to update now?": "È disponibile una nuova versione dell'app. Vuoi aggiornare ora?",
     "Later": "Dopo",
+    "Saving": "Salvataggio in corso",
+    "Settings saved": "Impostazioni salvate",
 }
