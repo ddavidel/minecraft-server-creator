@@ -74,4 +74,7 @@ translations = {
     "Later": "Dopo",
     "Saving": "Salvataggio in corso",
     "Settings saved": "Impostazioni salvate",
+    "There are still servers running. Are you sure you want to quit?" : "Ci sono ancora server in esecuzione. Sei sicuro di voler uscire?",
+    "No, take me back": "No, riportami indietro",
+    "Yes, quit": "Si, esci",
 }

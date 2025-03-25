@@ -9,7 +9,7 @@ import psutil
 from nicegui import ui, app
 import requests
 
-from modules.servers.models import MinecraftServer
+from modules.servers.models import MinecraftServer, get_server_list
 from modules.servers.utils import full_stop, create_server
 from modules.translations import translate as _
 from modules.user_settings import update_settings
@@ -81,7 +81,37 @@ async def stop_processes():
 
 def shutdown():
     """Shuts down the app, stopping all servers and processes"""
-    asyncio.create_task(stop_processes())
+
+    def _popup_confirm():
+        with ui.dialog() as popup, ui.card().classes("create-server-popup").style(
+            "width: 35%"
+        ):
+            with ui.row().style("width: 100%"):
+                ui.label(_("Are you sure?")).style("font-size: 30px;")
+            with ui.row().style("width: 100%"):
+                ui.label(
+                    _("There are still servers running. Are you sure you want to quit?")
+                ).style("opacity: 0.6; width: 100%")
+            with ui.row().style("width: 100%"):
+                ui.button(
+                    _("No, take me back"),
+                    on_click=popup.close,
+                    icon="close",
+                ).classes("normal-secondary-button").style("width: 100%")
+            with ui.row().style("width: 100%"):
+                ui.button(
+                    _("Yes, quit"),
+                    on_click=lambda: asyncio.create_task(stop_processes()),
+                    icon="check",
+                ).classes("normal-primary-button").style(
+                    "width: 100%; background-color: rgb(216, 68, 68) !important;"
+                )
+            return popup
+
+    if any([s.running for s in get_server_list()]):
+        _popup_confirm().open()
+    else:
+        asyncio.create_task(stop_processes())
 
 
 def minimize_window():
@@ -494,7 +524,9 @@ def popup_edit_server(server: MinecraftServer):
                 server.settings, "jar_type"
             ).classes("create-server-input").disable()
             ui.select(
-                urls.get_versions_for_type(server.jar_type), with_input=True, label=_("Server Version")
+                urls.get_versions_for_type(server.jar_type),
+                with_input=True,
+                label=_("Server Version"),
             ).classes("create-server-input").bind_value_from(
                 server.settings, "version"
             ).disable()
