@@ -5,6 +5,11 @@ User settings module
 import os
 import json
 
+from modules.logger import RotatingLogger
+
+
+logger = RotatingLogger()
+
 
 USER_SETTINGS_PATH = os.path.join(os.getcwd(), "config", "user_settings.json")
 
@@ -25,6 +30,8 @@ def load_custom_settings():
     with open(USER_SETTINGS_PATH, "r", encoding="utf-8") as file:
         return json.load(file)
 
+    logger.info("Loaded user settings")
+
 
 user_settings = load_custom_settings()
 
@@ -34,10 +41,12 @@ def save_custom_settings():
     with open(USER_SETTINGS_PATH, "w", encoding="utf-8") as file:
         json.dump(user_settings, file, indent=4)
         file.flush()
+    logger.info("Saved user settings")
 
 
 def update_settings(settings_dict: dict = None, **kwargs):
     """Updates the user settings json"""
+    logger.info(f"Updating user settings: {settings_dict or kwargs}")
     if settings_dict:
         if not isinstance(settings_dict, dict):
             raise ValueError("settings_dict must be a dictionary")

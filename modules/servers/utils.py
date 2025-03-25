@@ -14,6 +14,10 @@ from modules.servers.models import (
 )
 from modules.servers.forge import ForgeServer
 from modules.servers.java import JavaServer
+from modules.logger import RotatingLogger
+
+
+logger = RotatingLogger()
 
 
 TYPE_TO_CLASS = {
@@ -29,14 +33,17 @@ def create_server(settings: dict):
     This function handles all the necessary steps to create a server.
     Its higly recommended to use this function to create a server.
     """
-    TYPE_TO_CLASS[settings["jar_type"]](settings=settings)
+    logger.info("Creating server...")
+    instance = TYPE_TO_CLASS[settings["jar_type"]](settings=settings)
+    logger.info(f"Created server with uuid {instance.uuid}")
+
 
 
 def load_servers():
     """
     Function to load server as a MinecraftServer class instance
     """
-    print("Loading servers...")
+    logger.info("Loading servers...")
     if not os.path.exists(mcssettings.SERVERS_JSON_PATH):
         with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
             file.write("{}")
@@ -52,7 +59,7 @@ def load_servers():
     set_global_settings(servers)
 
     for server_uuid, settings in servers.items():
-        print(f"Loading {server_uuid}...")
+        logger.info(f"Loading {server_uuid}...")
         TYPE_TO_CLASS[settings["jar_type"]](
             settings=settings, uuid=server_uuid
         )
@@ -81,6 +88,7 @@ def get_server_by_uuid(uuid: str) -> MinecraftServer | None:
 
 async def full_stop():
     """Ensures all servers are stopped"""
+    logger.info("Stopping all servers...")
     for server in get_server_list():
         if server.running and server.process:
             await server.stop()

@@ -21,9 +21,11 @@ from modules.utils import (
 from modules.servers.models import MinecraftServer, get_server_list
 from modules.servers.utils import get_server_by_uuid
 from modules.translations import translate as _
+from modules.logger import RotatingLogger
 from update import check_for_updates
 
 update_available = check_for_updates()
+logger = RotatingLogger()
 
 
 def load_head():
@@ -129,6 +131,7 @@ def build_drawer():
 @ui.page("/server_detail/{uuid}")
 def server_detail(uuid: str):
     """Page that displays the server details"""
+    logger.info(f"GET /server_detail/{uuid}")
     # setup content
     load_head()
     header = ui.header().classes("content-header")
@@ -263,6 +266,7 @@ def create_server_card(server: MinecraftServer):
 @ui.refreshable
 def home(header: ui.header, container):
     """Home page"""
+    logger.info("GET /home")
     # clear content before
     container.clear()
     header.clear()
@@ -297,6 +301,7 @@ def edit_server_properties(uuid: str):
     A page that displays to the user a text editor to edit
     the server.properties file of a minecraft server
     """
+    logger.info(f"GET /edit/{uuid}")
     # setup content
     load_head()
     header = ui.header().classes("content-header")
