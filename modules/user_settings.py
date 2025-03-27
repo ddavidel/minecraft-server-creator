@@ -16,6 +16,10 @@ USER_SETTINGS_PATH = os.path.join(os.getcwd(), "config", "user_settings.json")
 
 KNOWN_SETTINGS = ["language"]
 
+TYPES_CONVERTION = {
+    "language": str,
+}
+
 
 def load_custom_settings():
     """
@@ -65,7 +69,12 @@ def update_settings(settings_dict: dict = None, **kwargs):
                 user_settings.update(initial_settings)
                 raise ValueError(f"Invalid setting: {key}")
 
-            user_settings[key] = value
+            try:
+                user_settings[key] = TYPES_CONVERTION[key](value)
+            except ValueError as e:
+                user_settings.update(initial_settings)
+                save_custom_settings()
+                raise ValueError(f"Invalid value for setting {key}: {value}") from e
 
     # Save settings
     save_custom_settings()

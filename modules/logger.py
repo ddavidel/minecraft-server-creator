@@ -12,7 +12,7 @@ class RotatingLogger:
     Simple logger that rotates logs daily and deletes old logs.
     """
 
-    LOG_RETENTION_DAYS = 14
+    LOG_RETENTION_DAYS = 0
 
     def __init__(self, log_dir="logs"):
         os.makedirs(log_dir, exist_ok=True)
@@ -22,8 +22,9 @@ class RotatingLogger:
         today = datetime.datetime.now().strftime("%Y-%m-%d")
         self.log_path = os.path.join(log_dir, f"logs_{today}.log")
 
-        # Clean up old logs
-        self.cleanup_old_logs()
+        if self.LOG_RETENTION_DAYS > 0:
+            # Clean up old logs
+            self.cleanup_old_logs()
 
     def log(self, level, message):
         """Log a message with the specified level of severity"""
@@ -70,7 +71,7 @@ class RotatingLogger:
     def debug(self, message: str):
         """
         Log a debug message.
-        
+
         Args:
             message (str): The message to log.
         """
@@ -79,7 +80,7 @@ class RotatingLogger:
     def warning(self, message: str):
         """
         Log a warning message.
-        
+
         Args:
             message (str): The message to log.
         """
@@ -88,7 +89,7 @@ class RotatingLogger:
     def error(self, message: str):
         """
         Log an error message.
-        
+
         Args:
             message (str): The message to log.
         """
@@ -97,7 +98,7 @@ class RotatingLogger:
     def critical(self, message: str):
         """
         Log a critical message.
-        
+
         Args:
             message (str): The message to log.
         """
