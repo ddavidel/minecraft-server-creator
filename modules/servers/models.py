@@ -14,10 +14,12 @@ from nicegui import binding, ui
 from config import settings as mcssettings
 from modules.translations import translate as _
 from modules.classes import ProcessMonitor
+from modules.logger import RotatingLogger
 
 
 server_list = []
 global_settings = {}
+logger = RotatingLogger()
 
 
 class MinecraftServer:
@@ -31,6 +33,7 @@ class MinecraftServer:
 
     def __init__(self, settings: dict, uuid: str = ""):
         # Setup attributes
+        logger.info("Initializing Minecraft Server...")
         self.name = settings.get("name")
         self.settings = settings.copy() or {}
         self.running = False
@@ -46,6 +49,7 @@ class MinecraftServer:
 
         # Add to server list
         server_list.append(self)
+        logger.info(f"Server {self.uuid} initialized")
 
     def __repr__(self):
         if self.jar_type == 0:
@@ -144,6 +148,7 @@ class MinecraftServer:
         # create server folder
         os.mkdir(self.settings["folder_path"])
         assert os.path.exists(self.settings["folder_path"])
+        logger.info(f"Created folder for server {self.uuid}")
 
     def _create_server(self):
         """
@@ -154,6 +159,7 @@ class MinecraftServer:
         - eula
         - create start.bat (maybe not?)
         """
+        logger.info("Initializing server creation...")
         self._create_server_folder()
         # download jar
         self._download_jar()
@@ -175,14 +181,14 @@ class MinecraftServer:
             with open(file_path, "wb") as file:
                 for chunk in response.iter_content(chunk_size=8192):
                     file.write(chunk)
-            print(f"downloaded {file_path}")
+            logger.info(f"Downloaded {url} for server {self.uuid}")
 
         except requests.exceptions.RequestException as e:
-            print(f"Error downloading the file: {e}")
+            logger.error(f"Error downloading the file: {e}")
             raise
 
         except Exception as e:
-            print(f"{e}")
+            logger.error(f"{e}")
             raise
 
     def _save_settings(self):
@@ -190,6 +196,7 @@ class MinecraftServer:
         with open(mcssettings.SERVERS_JSON_PATH, "w", encoding="utf-8") as file:
             # save global_settings
             json.dump(global_settings, file, indent=4)
+        logger.info("Global server settings saved")
 
     def save(self):
         """Saves instance settings into servers.json file"""
@@ -202,14 +209,15 @@ class MinecraftServer:
             self.name = self.settings.get("name")
 
         except Exception as e:
-            print(f"Can't save servers: {e}")
+            logger.error(f"Can't save servers: {e}")
             raise
 
-        print(f"Server {self.uuid} saved!")
+        logger.info(f"Server {self.uuid} saved!")
 
     async def start(self):
         """Starts the server"""
         self.starting = True
+        logger.info(f"Starting server {self.uuid}...")
         try:
             cmd = [
                 "java",
@@ -248,10 +256,10 @@ class MinecraftServer:
             await asyncio.gather(monitor_task, return_exceptions=True)
 
         except FileNotFoundError as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
 
         except Exception as e:
-            print(f"An error occurred: {e}")
+            logger.error(f"An error occurred: {e}")
 
         finally:
             self.starting = False
@@ -260,7 +268,7 @@ class MinecraftServer:
     async def stop(self):
         """Stops the server"""
         if self.process and self.running:
-            print("Stopping the server...")
+            logger.info(f"Stopping server {self.uuid}...")
             self.running = False
             self.stopping = True
             try:
@@ -271,9 +279,9 @@ class MinecraftServer:
 
                 # Wait for the process to terminate gracefully
                 await self.process.wait()
-                print("Server stopped.")
+                logger.info(f"Server {self.uuid} stopped.")
             except Exception as e:
-                print(f"Error while stopping the server: {e}")
+                logger.info(f"Error while stopping the server: {e}")
             finally:
                 # Ensure process cleanup
                 self.process = None
@@ -281,7 +289,7 @@ class MinecraftServer:
                 self.stopping = False
                 self.monitor.stop()
         else:
-            print("Server is not running.")
+            logger.warning("Server is not running.")
 
     async def console_writer(self, command: str):
         """Reads user input and sends it to the server."""
@@ -295,7 +303,7 @@ class MinecraftServer:
                     self.process.stdin.write((command + "\n").encode())
                     await self.process.stdin.drain()
         except Exception as e:
-            print(f"Writer error: {e}")
+            logger.error(f"Writer error: {e}")
 
     async def _console_reader(self) -> str:
         """reads and prints console output"""
@@ -310,12 +318,13 @@ class MinecraftServer:
                 elif not line:
                     break
         except Exception as e:
-            print(f"Reader error: {e}")
+            logger.error(f"Reader error: {e}")
 
     def delete(self, delete_dir: bool = False):
         """Deletes the server from servers.json"""
         # Don't use self.server_path here
         if not self.running and not self.process:
+            logger.info(f"Deleting server {self.uuid}... delete_dir: {delete_dir}")
             if delete_dir:
                 for item in os.listdir(self.settings["folder_path"]):
                     item_path = os.path.join(self.settings["folder_path"], item)
@@ -325,7 +334,7 @@ class MinecraftServer:
                         elif os.path.isdir(item_path):
                             shutil.rmtree(item_path)
                     except Exception as e:
-                        print(f"Failed to delete {item_path}: {e}")
+                        logger.error(f"Failed to delete {item_path}: {e}")
                 # remove server dir
                 shutil.rmtree(self.settings["folder_path"])
 
@@ -342,10 +351,10 @@ class MinecraftServer:
                 self._save_settings()
 
             except Exception as e:
-                print(f"Can't delete server: {e}")
+                logger.error(f"Can't delete server: {e}")
                 raise
 
-            print(f"Deleted server {self.uuid}")
+            logger.info(f"Deleted server {self.uuid}")
 
         else:
             raise Exception("Can't delete the server while it's running.")
@@ -362,6 +371,7 @@ class MinecraftServer:
                     if line.strip() and not line.startswith("#"):
                         key, value = line.strip().split("=", 1)
                         self.server_properties[key] = value
+        logger.info(f"{self.uuid} properties loaded")
 
     def save_server_properties(self, editor: ui.editor) -> bool:
         """
@@ -384,7 +394,7 @@ class MinecraftServer:
                 properties.flush()
                 properties.close()
 
-            print(f"{self.uuid} properties saved")
+            logger.info(f"{self.uuid} properties saved")
             return True
 
         elif self.has_server_properties and editor.content.get("text"):
@@ -402,19 +412,23 @@ def get_server_list() -> list[MinecraftServer]:
     """Returns server list"""
     return server_list
 
+
 def set_server_list(servers: list[MinecraftServer]):
     """Sets server list"""
     global server_list  # pylint: disable=global-statement
     server_list = servers
+
 
 def add_server_to_list(server: MinecraftServer):
     """Adds server to server list"""
     if server not in server_list:
         server_list.append(server)
 
+
 def get_global_settings() -> dict:
     """Returns global settings"""
     return global_settings
+
 
 def set_global_settings(settings: dict):
     """Sets global settings"""

@@ -13,8 +13,11 @@ from modules.servers.models import MinecraftServer, get_server_list
 from modules.servers.utils import full_stop, create_server
 from modules.translations import translate as _
 from modules.user_settings import update_settings
+from modules.logger import RotatingLogger
 from config import settings as mcssettings
 from update import Update, get_current_version
+
+logger = RotatingLogger()
 
 
 server_versions = []
@@ -63,6 +66,7 @@ async def stop_processes():
     This is a ugly way to close the app but it prevents processes from
     still running in the background (a problem i was having).
     """
+    logger.info("Shutting down the app...")
     await full_stop()
 
     tasks = {t for t in asyncio.all_tasks() if t is not asyncio.current_task()}
@@ -121,6 +125,7 @@ def minimize_window():
 
 def open_file_explorer(path: str):
     """Opens file explorer"""
+    logger.info(f"Opening file explorer at {path}")
     if platform.system() == "Windows":
         os.startfile(path)
     elif platform.system() == "Darwin":  # This is macOS according to ChatGPT
@@ -128,7 +133,7 @@ def open_file_explorer(path: str):
     elif platform.system() == "Linux":
         os.system(f"xdg-open {path}")
     else:
-        print("Unsupported operating system")
+        logger.warning("Unsupported operating system")
 
 
 def popup_create_server():

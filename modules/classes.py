@@ -5,6 +5,11 @@ Classes
 import asyncio
 import psutil
 
+from modules.logger import RotatingLogger
+
+
+logger = RotatingLogger()
+
 
 class ProcessMonitor:
     """
@@ -19,9 +24,12 @@ class ProcessMonitor:
         self.cpu_usage = 0
         self.disk_read = 0
         self.disk_write = 0
+        logger.info(f"{self} initialized")
 
     def __repr__(self):
-        return f"ProcessMonitor(pid={self.process.pid}, active={self.active})"
+        if self.process:
+            return f"ProcessMonitor(pid={self.process.pid}, active={self.active})"
+        return f"ProcessMonitor(active={self.active})"
 
     def stop(self):
         """Stop monitoring the process"""
@@ -30,11 +38,12 @@ class ProcessMonitor:
         self.cpu_usage = 0
         self.disk_read = 0
         self.disk_write = 0
+        logger.info(f"{self} stopped")
 
     async def run(self):
         """Start monitoring the process"""
         if not self.process:
-            print("No process to monitor. Use the 'process' attribute to set one.")
+            logger.warning("No process to monitor. Use the 'process' attribute to set one.")
             return
 
         if self.active:
@@ -45,6 +54,8 @@ class ProcessMonitor:
 
             prev_disk_read = 0
             prev_disk_write = 0
+
+            logger.info(f"{self} started")
 
             while self.process.returncode is None:
                 self.active = True
@@ -91,12 +102,14 @@ class ProcessMonitor:
 
                 await asyncio.sleep(self.interval)
 
-            self.stop()
-
         except psutil.NoSuchProcess:
-            print("The process has exited.")
+            logger.info("The process has exited.")
             self.active = False
 
         except Exception as e:
-            print(f"Error monitoring process: {e}")
+            logger.error(f"Error monitoring process: {e}")
             self.active = False
+
+        finally:
+            if self.active:
+                self.stop()

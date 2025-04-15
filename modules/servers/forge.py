@@ -9,6 +9,10 @@ import os
 from modules.translations import translate as _
 
 from modules.servers.models import MinecraftServer
+from modules.logger import RotatingLogger
+
+
+logger = RotatingLogger()
 
 
 class ForgeServer(MinecraftServer):
@@ -31,6 +35,7 @@ class ForgeServer(MinecraftServer):
     def _init_forge_server(self):
         """Initializes forge server"""
         # install server
+        logger.info(f"Initializing forge server {self.uuid}")
         assert self.jar_type == 2
         try:
             cmd = [
@@ -49,11 +54,12 @@ class ForgeServer(MinecraftServer):
             )
 
         except Exception as e:
-            print(f"Error while initializing forge server {self.uuid}: {e}")
+            logger.error(f"Error while initializing forge server {self.uuid}: {e}")
 
     def _set_user_jvm_args(self):
         """Sets set_user_jvm_args for FORGE server. ONLY FORGE SERVERS"""
         if self.jar_type == 2:
+            logger.info(f"Setting user jvm args for {self.uuid}")
             user_jvm_args_path = os.path.join(self.server_path, "user_jvm_args.txt")
             args = f"-Xmx{self.settings['dedicated_ram']}G -Xms{self.settings['dedicated_ram']}G"
 
@@ -76,6 +82,7 @@ class ForgeServer(MinecraftServer):
     async def start(self):
         """Starts the forge server"""
         self.starting = True
+        logger.info(f"Starting server {self.uuid}")
         try:
             if not os.path.exists(os.path.join(self.server_path, "run.bat")):
                 raise ValueError(_("Unsupported Forge Version. THIS IS NOT A BUG!"))
@@ -109,10 +116,10 @@ class ForgeServer(MinecraftServer):
             await asyncio.gather(monitor_task, return_exceptions=True)
 
         except FileNotFoundError as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
 
         except Exception as e:
-            print(f"An error occurred: {e}")
+            logger.error(f"An error occurred: {e}")
 
         finally:
             self.starting = False
@@ -124,7 +131,7 @@ class ForgeServer(MinecraftServer):
         without waiting for the process to finish.
         """
         if self.process and self.running:
-            print("Stopping the server...")
+            logger.info(f"Stopping server {self.uuid}...")
             self.running = False
             self.stopping = True
             try:
@@ -135,9 +142,9 @@ class ForgeServer(MinecraftServer):
                     self.process.stdin.write(b"\n")
                     await self.process.stdin.drain()
 
-                print("Server stopped.")
+                logger.info(f"Server {self.uuid} stopped.")
             except Exception as e:
-                print(f"Error while stopping the server: {e}")
+                logger.error(f"Error while stopping the server: {e}")
             finally:
                 # Ensure process cleanup
                 self.process = None
@@ -145,12 +152,13 @@ class ForgeServer(MinecraftServer):
                 self.stopping = False
                 self.monitor.stop()
         else:
-            print("Server is not running.")
+            logger.error("Server is not running.")
 
     def _create_server(self):
         """
         Creates the server
         """
+        logger.info("Initializing server creation...")
         # Create folder and download jar
         self._create_server_folder()
         self._download_jar()
