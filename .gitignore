@@ -6,3 +6,4 @@ servers/*
 *.py[cod]
 backups/
 user_settings.json
+logs/*.log

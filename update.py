@@ -16,6 +16,9 @@ from config.settings import (
     GITHUB_FILE_URL,
     BACKUP_DIR,
 )
+from modules.logger import RotatingLogger
+
+logger = RotatingLogger()
 
 BASE_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/refs/heads/{UPDATE_BRANCH}"
 
@@ -33,15 +36,19 @@ def get_current_version() -> str:
     """
     try:
         with open(VERSION_FILENAME, "r", encoding="utf-8") as file:
-            return file.read().strip()
+            version = file.read().strip()
     except FileNotFoundError:
-        return "0.0.0"
+        version = "0.0.0"
+
+    logger.info(f"Got current version: {version}")
+    return version
 
 
 def check_for_updates() -> bool:
     """
     Check for updates
     """
+    logger.info("Checking for updates...")
     current_version = get_current_version()
 
     try:
@@ -76,6 +83,7 @@ class Update:
         Run the update
         """
         if self.update_available:
+            logger.info("Running update...")
             # Update status
             self.status = "Starting update"
             # Backup the app
@@ -96,9 +104,10 @@ class Update:
 
             self.status = "Update complete"
             self.completed = True
+            logger.info("Update complete")
 
         else:
-            print("No updates available")
+            logger.info("No updates available")
 
     def download_file(self, filename: str, path: str):
         """
@@ -117,15 +126,15 @@ class Update:
         # Download file
         content = self.download_file(filename=filename, path=path)
 
-        os.makedirs(os.path.join(self.app_dir, path), exist_ok=True)
+        os.makedirs(os.path.join(self.app_dir, *path.split("/")), exist_ok=True)
 
         # Overwrite file
-        with open(os.path.join(self.app_dir, path, filename), "wb") as file:
+        with open(os.path.join(self.app_dir, *path.split("/"), filename), "wb") as file:
             file.write(content)
             file.flush()
 
         self.status = f"Updated {filename}"
-        print(f"Updated {filename}")
+        logger.info(f"Updated {filename}")
 
     def create_backup(self):
         """
@@ -142,23 +151,23 @@ class Update:
         shutil.make_archive(zip_name.replace(".zip", ""), "zip", self.app_dir)
 
         self.status = "App backed up"
-        print(f"App backed up to: {zip_name}")
+        logger.info(f"App backed up to: {zip_name}")
 
     def post_update_routines(self):
         """Execute post update routines"""
         self.status = "Running post-update routines"
-        print("\nRunning post-update routines\n")
+        logger.info("\nRunning post-update routines\n")
 
         # Run routines
         self._routine_install_requirements()
 
         self.status = "\nPost-update routines completed\n"
-        print("\nPost-update routines completed\n")
+        logger.info("\nPost-update routines completed\n")
 
     def _routine_install_requirements(self):
         """Installs requirements from requirements.txt file"""
         self.status = "Updating requirements"
-        print("Updating requirements")
+        logger.info("Updating requirements")
         subprocess.run(
         [
             sys.executable,

@@ -2,20 +2,22 @@
 Utils
 """
 
-import io
 import os
 import asyncio
 import platform
 import psutil
 from nicegui import ui, app
 import requests
-import pandas as pd
 
-from modules.server import MinecraftServer, full_stop
+from modules.servers.models import MinecraftServer, get_server_list
+from modules.servers.utils import full_stop, create_server
 from modules.translations import translate as _
 from modules.user_settings import update_settings
+from modules.logger import RotatingLogger
 from config import settings as mcssettings
 from update import Update, get_current_version
+
+logger = RotatingLogger()
 
 
 server_versions = []
@@ -64,6 +66,7 @@ async def stop_processes():
     This is a ugly way to close the app but it prevents processes from
     still running in the background (a problem i was having).
     """
+    logger.info("Shutting down the app...")
     await full_stop()
 
     tasks = {t for t in asyncio.all_tasks() if t is not asyncio.current_task()}
@@ -82,7 +85,37 @@ async def stop_processes():
 
 def shutdown():
     """Shuts down the app, stopping all servers and processes"""
-    asyncio.create_task(stop_processes())
+
+    def _popup_confirm():
+        with ui.dialog() as popup, ui.card().classes("create-server-popup").style(
+            "width: 35%"
+        ):
+            with ui.row().style("width: 100%"):
+                ui.label(_("Are you sure?")).style("font-size: 30px;")
+            with ui.row().style("width: 100%"):
+                ui.label(
+                    _("There are still servers running. Are you sure you want to quit?")
+                ).style("opacity: 0.6; width: 100%")
+            with ui.row().style("width: 100%"):
+                ui.button(
+                    _("No, take me back"),
+                    on_click=popup.close,
+                    icon="close",
+                ).classes("normal-secondary-button").style("width: 100%")
+            with ui.row().style("width: 100%"):
+                ui.button(
+                    _("Yes, quit"),
+                    on_click=lambda: asyncio.create_task(stop_processes()),
+                    icon="check",
+                ).classes("normal-primary-button").style(
+                    "width: 100%; background-color: rgb(216, 68, 68) !important;"
+                )
+            return popup
+
+    if any([s.running for s in get_server_list()]):
+        _popup_confirm().open()
+    else:
+        asyncio.create_task(stop_processes())
 
 
 def minimize_window():
@@ -92,6 +125,7 @@ def minimize_window():
 
 def open_file_explorer(path: str):
     """Opens file explorer"""
+    logger.info(f"Opening file explorer at {path}")
     if platform.system() == "Windows":
         os.startfile(path)
     elif platform.system() == "Darwin":  # This is macOS according to ChatGPT
@@ -99,7 +133,7 @@ def open_file_explorer(path: str):
     elif platform.system() == "Linux":
         os.system(f"xdg-open {path}")
     else:
-        print("Unsupported operating system")
+        logger.warning("Unsupported operating system")
 
 
 def popup_create_server():
@@ -129,7 +163,7 @@ def popup_create_server():
             assert settings.get("version", None), _("Server version can't be empty")
 
             # Initialize server
-            MinecraftServer(settings=settings.copy())
+            create_server(settings=settings.copy())
 
             # Reset settings and name
             settings = {
@@ -495,8 +529,10 @@ def popup_edit_server(server: MinecraftServer):
                 server.settings, "jar_type"
             ).classes("create-server-input").disable()
             ui.select(
-                server_versions, with_input=True, label=_("Server Version")
-            ).classes("create-server-input").bind_value(
+                urls.get_versions_for_type(server.jar_type),
+                with_input=True,
+                label=_("Server Version"),
+            ).classes("create-server-input").bind_value_from(
                 server.settings, "version"
             ).disable()
 
@@ -651,7 +687,25 @@ def popup_app_settings():
     """App settings popup window"""
 
     async def _update_settings(**kwargs):
-        update_settings(**kwargs)
+        n = ui.notification(
+            message=_("Saving"),
+            spinner=True,
+            timeout=None,
+            type="info",
+        )
+        await asyncio.sleep(0.5)
+        try:
+            update_settings(**kwargs)
+            n.spinner = False
+            n.type = "positive"
+            n.message = _("Settings saved")
+        except Exception as e:
+            n.spinner = False
+            n.type = "negative"
+            n.message = str(e)
+        finally:
+            await asyncio.sleep(3)
+            n.dismiss()
 
     with ui.dialog() as popup, ui.card().classes("delete-server-popup"):
         with ui.row().style("width: 100%;"):
@@ -681,12 +735,13 @@ def popup_app_settings():
                     mcssettings.AVAILABLE_LANGAGUES,
                     label=_("Language"),
                     with_input=False,
-                    on_change=lambda x: _update_settings(language=x.value),
+                    # on_change=lambda x: _update_settings(language=x.value),
                 )
                 .classes("create-server-input")
                 .style("width: 100% !important;")
             )
             language_select.set_value(mcssettings.DEFAULT_LANGUAGE)
+            language_select.on_value_change(lambda x: _update_settings(language=x.value))
 
         with ui.row().style("width: 100%;").style("flex-grow: 1;"):
             ui.button(_("Close"), on_click=popup.close, icon="close").classes(
