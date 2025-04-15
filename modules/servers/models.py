@@ -10,6 +10,7 @@ from uuid import uuid4
 import numpy as np
 import requests
 from nicegui import binding, ui
+from mcstatus import JavaServer
 
 from config import settings as mcssettings
 from modules.translations import translate as _
@@ -44,8 +45,18 @@ class MinecraftServer:
         self.server_properties = {}
         self.monitor = ProcessMonitor()
 
+        # If uuid is not present it means that the server is new
+        # and needs to be created
         if not uuid:
             self._create_server()
+
+        if self.has_server_properties:
+            self.load_server_properties()
+        if not self.query_enabled:
+            self.enable_query()
+
+        # Initialize after loading properties
+        self.mcstatus = JavaServer(self.address, self.port)
 
         # Add to server list
         server_list.append(self)
@@ -75,11 +86,21 @@ class MinecraftServer:
     @property
     def address(self) -> str:
         """ip address"""
-        return self.settings.get("address", "undefined")
+        if self.has_server_properties:
+            return (
+                self.server_properties["server-ip"]
+                if self.server_properties.get("server-ip") != ""
+                else "127.0.0.1"
+            )
+        logger.warning("server properties not found while getting server address")
+        return self.settings.get("address", "127.0.0.1")
 
     @property
     def port(self) -> int:
         """port number"""
+        if self.has_server_properties:
+            return int(self.server_properties.get("server-port", 25565))
+        logger.warning("server properties not found while getting server port")
         return self.settings.get("port", np.nan)
 
     @property
@@ -129,6 +150,43 @@ class MinecraftServer:
     def has_server_properties(self) -> bool:
         """Returns true if server.properties is in server dir"""
         return os.path.exists(os.path.join(self.server_path, "server.properties"))
+
+    @property
+    def query_enabled(self) -> bool:
+        """Returns true if query is enabled"""
+        return self.server_properties.get("enable-query", "false").lower() == "true"
+
+    @property
+    def player_list(self) -> list[str]:
+        """Returns player list"""
+        try:
+            return self.mcstatus.query().players.names
+        except Exception as e:
+            logger.error(f"Error getting player list: {e}")
+            return []
+
+    @property
+    def player_count(self) -> int:
+        """Returns player count"""
+        return len(self.player_list)
+
+    @property
+    def max_players(self) -> int:
+        """Returns max players"""
+        try:
+            self.mcstatus.query().players.max
+        except Exception as e:
+            logger.error(f"Error getting max players: {e}")
+            return 20  # Default value
+
+    @property
+    def motd(self) -> str:
+        """Returns server motd"""
+        try:
+            return self.mcstatus.query().motd.parsed[0]
+        except Exception as e:
+            logger.error(f"Error getting MOTD: {e}")
+            return "A Minecraft Server"  # Default value
 
     def accept_eula(self):
         """Accepts eula"""
@@ -200,9 +258,13 @@ class MinecraftServer:
 
     def save(self):
         """Saves instance settings into servers.json file"""
+        backup = self.settings.copy()
         try:
+            # Update address and port
+            self.settings["address"] = self.address
+            self.settings["port"] = self.port
             # update global_settings
-            global_settings[self.uuid] = self.settings
+            global_settings[self.uuid] = self.settings.copy()
             # save global_settings
             self._save_settings()
             # update name
@@ -210,6 +272,9 @@ class MinecraftServer:
 
         except Exception as e:
             logger.error(f"Can't save servers: {e}")
+            # Rollback to previous settings
+            self.settings = backup.copy()
+            logger.info("Rolled back to previous settings")
             raise
 
         logger.info(f"Server {self.uuid} saved!")
@@ -405,6 +470,15 @@ class MinecraftServer:
             # ).replace("}", "").split(",")[0].strip().split(": ")
 
         return False
+
+    def enable_query(self):
+        """
+        Enable queries on server properties
+        This is necessary to fully use mcstatus
+        """
+        if self.has_server_properties:
+            if "enable-query" in self.server_properties:
+                self.server_properties["enable-query"] = "true"
 
 
 # Some functions
