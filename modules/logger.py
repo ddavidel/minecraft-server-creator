@@ -29,7 +29,7 @@ class RotatingLogger:
     def log(self, level, message):
         """Log a message with the specified level of severity"""
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_message = f"[{timestamp}] [{level.upper()}] {message}"
+        log_message = f"[{timestamp}] {level.upper()} {message}"
         print(log_message)
 
         with open(self.log_path, "a", encoding="utf-8") as log_file:
