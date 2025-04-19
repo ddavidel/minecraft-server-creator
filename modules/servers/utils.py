@@ -4,6 +4,7 @@ Server related utility functions and classes
 
 import json
 import os
+import requests
 
 from config import settings as mcssettings
 from modules.translations import translate as _
@@ -14,15 +15,15 @@ from modules.servers.models import (
 )
 from modules.servers.forge import ForgeServer
 from modules.servers.java import JavaServer
+from modules.servers.spigot import SpigotServer
 from modules.logger import RotatingLogger
 
 
 logger = RotatingLogger()
 
-
 TYPE_TO_CLASS = {
     0: JavaServer,
-    # 1: SpigotServer,
+    1: SpigotServer,
     2: ForgeServer,
 }
 
@@ -92,3 +93,37 @@ async def full_stop():
     for server in get_server_list():
         if server.running and server.process:
             await server.stop()
+
+
+def load_vanilla_versions() -> dict:
+    """Loads vanilla versions"""
+    response = requests.get(mcssettings.VANILLA_VERSION_LIST_URL, timeout=10)
+    response.raise_for_status()
+    vanilla_dict = response.json()
+    return vanilla_dict
+
+
+def load_spigot_versions() -> dict:
+    """Loads spigot versions"""
+    response = requests.get(mcssettings.SPIGOT_VERSION_LIST_URL, timeout=10)
+    response.raise_for_status()
+    spigot_dict = response.json()
+    return spigot_dict
+
+
+def load_forge_versions() -> dict:
+    """Loads forge versions"""
+    response = requests.get(mcssettings.FORGE_VERSION_LIST_URL, timeout=10)
+    response.raise_for_status()
+    forge_dict = response.json()
+
+    # atm mcsc works only with forge version from 1.17.0
+    # so we need to remove the previous versions
+    filtered_dict = {}
+    for version in forge_dict.keys():
+        text_version = version.split("-")[0].replace(".", "").strip("0")
+        if text_version.isnumeric():
+            version_number = int(text_version)
+            if version_number >= 1170:
+                filtered_dict[version] = forge_dict[version]
+    return filtered_dict
