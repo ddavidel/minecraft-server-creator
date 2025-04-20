@@ -54,6 +54,8 @@ class MinecraftServer:
     def __repr__(self):
         if self.jar_type == 0:
             return f"<JavaServer: {self.name!r} addr={self.socket_address}>"
+        if self.jar_type == 1:
+            return f"<PaperServer: {self.name!r} addr={self.socket_address}>"
         if self.jar_type == 2:
             return f"<ForgeServer: {self.name!r} addr={self.socket_address}>"
         return f"<MinecraftServer: {self.name!r} addr={self.socket_address}>"
@@ -105,20 +107,7 @@ class MinecraftServer:
     @property
     def jar_path(self) -> str:
         """server's jar path"""
-        if self.jar_type == 0:
-            # Vanilla
-            return os.path.join(self.server_path, "server.jar")
-
-        if self.jar_type == 1:
-            # Spigot
-            raise NotImplementedError()
-
-        if self.jar_type == 2:
-            # Forge
-            return os.path.join(
-                self.server_path,
-                f"minecraft_server.{self.version.split('-')[0]}.jar",
-            )
+        return os.path.join(self.server_path, "server.jar")
 
     @property
     def server_path(self) -> str:
