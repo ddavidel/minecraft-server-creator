@@ -15,7 +15,7 @@ from modules.servers.models import (
 )
 from modules.servers.forge import ForgeServer
 from modules.servers.java import JavaServer
-from modules.servers.spigot import SpigotServer
+from modules.servers.paper import PaperServer
 from modules.logger import RotatingLogger
 
 
@@ -23,8 +23,14 @@ logger = RotatingLogger()
 
 TYPE_TO_CLASS = {
     0: JavaServer,
-    1: SpigotServer,
+    1: PaperServer,
     2: ForgeServer,
+}
+
+FILE_TO_ATTR = {
+    "server.properties": "server_properties",
+    "spigot.yml": "spigot_properties",
+    "paper.yml": "paper_properties",
 }
 
 
@@ -37,7 +43,6 @@ def create_server(settings: dict):
     logger.info("Creating server...")
     instance = TYPE_TO_CLASS[settings["jar_type"]](settings=settings)
     logger.info(f"Created server with uuid {instance.uuid}")
-
 
 
 def load_servers():
@@ -61,9 +66,7 @@ def load_servers():
 
     for server_uuid, settings in servers.items():
         logger.info(f"Loading {server_uuid}...")
-        TYPE_TO_CLASS[settings["jar_type"]](
-            settings=settings, uuid=server_uuid
-        )
+        TYPE_TO_CLASS[settings["jar_type"]](settings=settings, uuid=server_uuid)
 
 
 def get_server_by_name(server_name: str) -> MinecraftServer | None:
@@ -77,7 +80,9 @@ def get_server_by_name(server_name: str) -> MinecraftServer | None:
     return None
 
 
-def get_server_by_uuid(uuid: str) -> MinecraftServer | None:
+def get_server_by_uuid(
+    uuid: str
+) -> MinecraftServer | ForgeServer | PaperServer | None:
     """
     Returns server instance by by uuid.
     """
@@ -103,12 +108,12 @@ def load_vanilla_versions() -> dict:
     return vanilla_dict
 
 
-def load_spigot_versions() -> dict:
-    """Loads spigot versions"""
-    response = requests.get(mcssettings.SPIGOT_VERSION_LIST_URL, timeout=10)
+def load_paper_versions() -> dict:
+    """Loads paper versions"""
+    response = requests.get(mcssettings.PAPER_VERSION_LIST_URL, timeout=10)
     response.raise_for_status()
-    spigot_dict = response.json()
-    return spigot_dict
+    paper_dict = response.json()
+    return paper_dict
 
 
 def load_forge_versions() -> dict:
