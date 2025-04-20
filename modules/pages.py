@@ -176,7 +176,7 @@ def server_detail(uuid: str):
         ).classes("drawer-button")
         ui.button(
             _("Edit server properties"),
-            on_click=lambda x: ui.navigate.to(f"/edit/{server.uuid}"),
+            on_click=lambda x: ui.navigate.to(f"/edit/{server.uuid}/server.properties"),
             icon="edit_note",
         ).classes("drawer-button").bind_enabled_from(
             server,
