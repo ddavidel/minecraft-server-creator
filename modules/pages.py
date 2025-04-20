@@ -19,7 +19,8 @@ from modules.utils import (
     minimize_window,
 )
 from modules.servers.models import MinecraftServer, get_server_list
-from modules.servers.utils import get_server_by_uuid
+from modules.servers.paper import PaperServer
+from modules.servers.utils import get_server_by_uuid, FILE_TO_ATTR
 from modules.translations import translate as _
 from modules.logger import RotatingLogger
 from update import check_for_updates
@@ -181,6 +182,23 @@ def server_detail(uuid: str):
             server,
             "has_server_properties",
         )
+        if isinstance(server, PaperServer):
+            ui.button(
+                _("Edit spigot properties"),
+                on_click=lambda x: ui.navigate.to(f"/edit/{server.uuid}/spigot.yml"),
+                icon="edit_note",
+            ).classes("drawer-button").bind_enabled_from(
+                server,
+                "has_spigot_yml",
+            )
+            ui.button(
+                _("Edit paper properties"),
+                on_click=lambda x: ui.navigate.to(f"/edit/{server.uuid}/paper.yml"),
+                icon="edit_note",
+            ).classes("drawer-button").bind_enabled_from(
+                server,
+                "has_paper_yml",
+            )
         ui.button(
             _("Delete server"),
             on_click=lambda x: popup_delete_server(server=server),
@@ -295,11 +313,12 @@ def home(header: ui.header, container):
                     ui.label(_("Seems like you don't have any. Let's create one!"))
 
 
-@ui.page("/edit/{uuid}")
-def edit_server_properties(uuid: str):
+@ui.page("/edit/{uuid}/{what}")
+def edit_server_properties(uuid: str, what: str = "server.properties"):
     """
     A page that displays to the user a text editor to edit
-    the server.properties file of a minecraft server
+    the a file.
+    This can be server.properties or spigot.yml
     """
     logger.info(f"GET /edit/{uuid}")
     # setup content
@@ -308,12 +327,28 @@ def edit_server_properties(uuid: str):
     container = html.section().classes("content")
 
     server = get_server_by_uuid(uuid=uuid)
-    server.load_server_properties()
+
+    if what == "server.properties":
+        server.load_server_properties()
+    elif what in ("spigot.yml", "paper.yml") and isinstance(server, PaperServer):
+        if what == "spigot.yml":
+            server.load_spigot_yml()
+        elif what == "paper.yml":
+            server.load_paper_yml()
+        else:
+            logger.error(f"Unknown file {what} for server {server.uuid}")
+            raise ValueError(f"Unknown file {what} for server {server.uuid}")
+
+    data = getattr(server, FILE_TO_ATTR[what])
 
     async def _saving(server: MinecraftServer, editor: ui.editor):
         await asyncio.sleep(0.5)
         try:
-            saved = server.save_server_properties(editor=editor)
+            if what in ("spigot.yml", "paper.yml"):
+                saved = server.save_yml(filename=what, editor=editor)
+            else:
+                saved = server.save_server_properties(editor=editor)
+
             if saved:
                 n = ui.notification(message="Saved", spinner=False, type="positive")
                 await asyncio.sleep(3)
@@ -336,6 +371,6 @@ def edit_server_properties(uuid: str):
         ui.label(server.name).style("font-size: 40px;")
 
     with container:
-        ui.json_editor({"content": {"json": server.server_properties}}).classes(
+        ui.json_editor({"content": {"json": data}}).classes(
             "properties-editor"
         ).on_change(lambda editor: _saving(server=server, editor=editor))
