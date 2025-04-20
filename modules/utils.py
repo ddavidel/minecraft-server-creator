@@ -15,7 +15,7 @@ from modules.servers.utils import (
     create_server,
     load_vanilla_versions,
     load_forge_versions,
-    load_spigot_versions,
+    load_paper_versions,
 )
 from modules.translations import translate as _
 from modules.user_settings import update_settings
@@ -29,7 +29,7 @@ logger = RotatingLogger()
 server_versions = []
 server_types = {
     0: "Vanilla",
-    1: "Spigot",
+    1: "Paper",
     2: "Forge",
 }
 
@@ -292,13 +292,13 @@ def load_server_versions():
 
     # Retrieve versions data
     vanilla_dict = load_vanilla_versions()
-    spigot_dict = load_spigot_versions()
+    paper_dict = load_paper_versions()
     forge_dict = load_forge_versions()
 
     # Set urls
     urls = JarUrl()
     urls.set_urls(jar_type=0, data_dict=vanilla_dict)
-    urls.set_urls(jar_type=1, data_dict=spigot_dict)
+    urls.set_urls(jar_type=1, data_dict=paper_dict)
     urls.set_urls(jar_type=2, data_dict=forge_dict)
 
 
@@ -307,7 +307,7 @@ class JarUrl:
 
     def __init__(self):
         self.vanilla_urls = {}
-        self.spigot_urls = {}
+        self.paper_urls = {}
         self.forge_urls = {}
 
     def set_urls(self, jar_type: int, data_dict: dict):
@@ -315,7 +315,7 @@ class JarUrl:
         if jar_type == 0:
             self.vanilla_urls = data_dict.copy()
         elif jar_type == 1:
-            self.spigot_urls = data_dict.copy()
+            self.paper_urls = data_dict.copy()
         elif jar_type == 2:
             self.forge_urls = data_dict.copy()
         # self.update_version_list()
@@ -329,10 +329,10 @@ class JarUrl:
             return self.vanilla_urls.get(version)
 
         if jar_type == 1:
-            # spigot url
-            if not self.spigot_urls.get(version):
+            # Paper url
+            if not self.paper_urls.get(version):
                 raise ValueError(_("Version URL not found"))
-            return self.spigot_urls.get(version)
+            return self.paper_urls.get(version)
 
         if jar_type == 2:
             # forge url
@@ -345,7 +345,7 @@ class JarUrl:
         global server_versions  # pylint:disable=global-statement
         version_list = (
             list(self.vanilla_urls.keys())
-            + list(self.spigot_urls.keys())
+            + list(self.paper_urls.keys())
             + list(self.forge_urls.keys())
         )
         server_versions = self.filter_version_list(version_list=list(set(version_list)))
@@ -389,7 +389,7 @@ class JarUrl:
         if jar_type == 0:
             data = list(self.vanilla_urls.keys())
         elif jar_type == 1:
-            data = list(self.spigot_urls.keys())
+            data = list(self.paper_urls.keys())
         elif jar_type == 2:
             data = list(self.forge_urls.keys())
 
@@ -402,7 +402,7 @@ class JarUrl:
         if jar_type == 0:
             data = list(self.vanilla_urls.keys())
         elif jar_type == 1:
-            data = list(self.spigot_urls.keys())
+            data = list(self.paper_urls.keys())
         elif jar_type == 2:
             data = list(self.forge_urls.keys())
 
