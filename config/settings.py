@@ -27,3 +27,4 @@ NOGUI = True
 # URLS
 VANILLA_VERSION_LIST_URL = "https://raw.githubusercontent.com/ddavidel/minecraft-server-jars/refs/heads/main/versions/vanilla_version_list.json"
 FORGE_VERSION_LIST_URL = "https://raw.githubusercontent.com/ddavidel/minecraft-forge-links/refs/heads/main/version_list.json"
+PAPER_VERSION_LIST_URL = "https://raw.githubusercontent.com/ddavidel/minecraft-server-jars/refs/heads/main/versions/paper_version_list.json"

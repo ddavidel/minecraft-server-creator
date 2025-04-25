@@ -4,6 +4,7 @@ Server related utility functions and classes
 
 import json
 import os
+import requests
 
 from config import settings as mcssettings
 from modules.translations import translate as _
@@ -14,16 +15,22 @@ from modules.servers.models import (
 )
 from modules.servers.forge import ForgeServer
 from modules.servers.java import JavaServer
+from modules.servers.paper import PaperServer
 from modules.logger import RotatingLogger
 
 
 logger = RotatingLogger()
 
-
 TYPE_TO_CLASS = {
     0: JavaServer,
-    # 1: SpigotServer,
+    1: PaperServer,
     2: ForgeServer,
+}
+
+FILE_TO_ATTR = {
+    "server.properties": "server_properties",
+    "spigot.yml": "spigot_properties",
+    "paper.yml": "paper_properties",
 }
 
 
@@ -36,7 +43,6 @@ def create_server(settings: dict):
     logger.info("Creating server...")
     instance = TYPE_TO_CLASS[settings["jar_type"]](settings=settings)
     logger.info(f"Created server with uuid {instance.uuid}")
-
 
 
 def load_servers():
@@ -60,9 +66,7 @@ def load_servers():
 
     for server_uuid, settings in servers.items():
         logger.info(f"Loading {server_uuid}...")
-        TYPE_TO_CLASS[settings["jar_type"]](
-            settings=settings, uuid=server_uuid
-        )
+        TYPE_TO_CLASS[settings["jar_type"]](settings=settings, uuid=server_uuid)
 
 
 def get_server_by_name(server_name: str) -> MinecraftServer | None:
@@ -76,7 +80,9 @@ def get_server_by_name(server_name: str) -> MinecraftServer | None:
     return None
 
 
-def get_server_by_uuid(uuid: str) -> MinecraftServer | None:
+def get_server_by_uuid(
+    uuid: str
+) -> MinecraftServer | ForgeServer | PaperServer | None:
     """
     Returns server instance by by uuid.
     """
@@ -92,3 +98,37 @@ async def full_stop():
     for server in get_server_list():
         if server.running and server.process:
             await server.stop()
+
+
+def load_vanilla_versions() -> dict:
+    """Loads vanilla versions"""
+    response = requests.get(mcssettings.VANILLA_VERSION_LIST_URL, timeout=10)
+    response.raise_for_status()
+    vanilla_dict = response.json()
+    return vanilla_dict
+
+
+def load_paper_versions() -> dict:
+    """Loads paper versions"""
+    response = requests.get(mcssettings.PAPER_VERSION_LIST_URL, timeout=10)
+    response.raise_for_status()
+    paper_dict = response.json()
+    return paper_dict
+
+
+def load_forge_versions() -> dict:
+    """Loads forge versions"""
+    response = requests.get(mcssettings.FORGE_VERSION_LIST_URL, timeout=10)
+    response.raise_for_status()
+    forge_dict = response.json()
+
+    # atm mcsc works only with forge version from 1.17.0
+    # so we need to remove the previous versions
+    filtered_dict = {}
+    for version in forge_dict.keys():
+        text_version = version.split("-")[0].replace(".", "").strip("0")
+        if text_version.isnumeric():
+            version_number = int(text_version)
+            if version_number >= 1170:
+                filtered_dict[version] = forge_dict[version]
+    return filtered_dict
