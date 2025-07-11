@@ -5,14 +5,13 @@ User settings module
 import os
 import json
 
+from ddevdb import Database
+
 from modules.logger import RotatingLogger
+from config.settings import USER_SETTINGS_FILE_PATH, BACKEND
 
 
 logger = RotatingLogger()
-
-
-USER_SETTINGS_PATH = os.path.join(os.getcwd(), "config", "user_settings.json")
-
 
 KNOWN_SETTINGS = ["language"]
 
@@ -21,28 +20,30 @@ TYPES_CONVERTION = {
 }
 
 
-def load_custom_settings():
+def get_db() -> Database:
+    """Returns a ddevdb Database instance"""
+    db = Database(
+        # filename=USER_SETTINGS_FILENAME,  # kinda counter intuitive
+        filepath=USER_SETTINGS_FILE_PATH,
+        backend=BACKEND,
+    )
+    return db
+
+
+def get_custom_settings() -> dict:
     """
-    Loads the user settings json. If the file does not exist, it is created.
+    Loads the user settings json.
     """
-    if not os.path.exists(USER_SETTINGS_PATH):
-        with open(USER_SETTINGS_PATH, "w", encoding="utf-8") as file:
-            file.write("{}")
-            file.flush()
-        return {}
-
-    with open(USER_SETTINGS_PATH, "r", encoding="utf-8") as file:
-        return json.load(file)
-
-    logger.info("Loaded user settings")
+    db = get_db()
+    return db.get()
 
 
-user_settings = load_custom_settings()
+user_settings = get_custom_settings()
 
 
 def save_custom_settings():
     """Saves the user settings json"""
-    with open(USER_SETTINGS_PATH, "w", encoding="utf-8") as file:
+    with open(USER_SETTINGS_FILE_PATH, "w", encoding="utf-8") as file:
         json.dump(user_settings, file, indent=4)
         file.flush()
     logger.info("Saved user settings")
@@ -51,30 +52,29 @@ def save_custom_settings():
 def update_settings(settings_dict: dict = None, **kwargs):
     """Updates the user settings json"""
     logger.info(f"Updating user settings: {settings_dict or kwargs}")
-    if settings_dict:
-        if not isinstance(settings_dict, dict):
-            raise ValueError("settings_dict must be a dictionary")
+    db = get_db()
+    # I suggest rewriting all of this
 
-        if user_settings.keys() != settings_dict.keys():
-            raise ValueError(
-                "settings_dict must have the same keys as the user_settings"
-            )
+    for setting, value in kwargs.items():
+        if setting not in KNOWN_SETTINGS:
+            raise ValueError(f"Invalid setting: {setting}")
 
-        user_settings.update(settings_dict)
+        try:
+            converted_value = TYPES_CONVERTION[setting](value)
+        except ValueError as e:
+            raise ValueError(f"Invalid value for setting {setting}: {value}") from e
 
-    else:
-        initial_settings = user_settings.copy()
-        for key, value in kwargs.items():
-            if key not in user_settings.keys() and key not in KNOWN_SETTINGS:
-                user_settings.update(initial_settings)
-                raise ValueError(f"Invalid setting: {key}")
+        # Update setting
+        db[setting] = converted_value
 
-            try:
-                user_settings[key] = TYPES_CONVERTION[key](value)
-            except ValueError as e:
-                user_settings.update(initial_settings)
-                save_custom_settings()
-                raise ValueError(f"Invalid value for setting {key}: {value}") from e
+    # No clue if this will ever be useful
+    # if settings_dict:
+    #     if not isinstance(settings_dict, dict):
+    #         raise ValueError("settings_dict must be a dictionary")
 
-    # Save settings
-    save_custom_settings()
+    #     if user_settings.keys() != settings_dict.keys():
+    #         raise ValueError(
+    #             "settings_dict must have the same keys as the user_settings"
+    #         )
+
+    #     user_settings.update(settings_dict)

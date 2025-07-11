@@ -17,7 +17,7 @@ from modules.servers.utils import (
     load_forge_versions,
     load_paper_versions,
 )
-from modules.translations import translate as _
+from modules.translations import translate as _, reload_translations
 from modules.user_settings import update_settings
 from modules.logger import RotatingLogger
 from config import settings as mcssettings
@@ -674,6 +674,8 @@ def popup_app_settings():
             n.spinner = False
             n.type = "positive"
             n.message = _("Settings saved")
+            # There is stuff to reload after updating setting? do it here!
+            reload_translations()
         except Exception as e:
             n.spinner = False
             n.type = "negative"

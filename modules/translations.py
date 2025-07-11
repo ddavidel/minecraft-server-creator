@@ -4,7 +4,8 @@ Translations module
 
 import importlib
 
-from config.settings import DEFAULT_LANGUAGE
+# from config.settings import DEFAULT_LANGUAGE
+from modules.user_settings import get_db
 
 
 languages_map = {
@@ -18,8 +19,13 @@ def load_language():
     Loads the language module based on the DEFAULT_LANGUAGE setting.
     If the module is not found, an empty dictionary is returned.
     """
+    db = get_db()
+    if db.exists("language"):
+        lang = db.get("language")
+    else:
+        lang = "en"
     try:
-        return importlib.import_module(f"localization.{DEFAULT_LANGUAGE}").translations
+        return importlib.import_module(f"localization.{lang}").translations
 
     except ImportError:
         return {}
@@ -45,3 +51,9 @@ def translate(message: str, **kwargs) -> str:
     except ValueError as e:
         print(f"Error: Invalid format in message: {message}. Error: {e}")
         raise
+
+
+def reload_translations():
+    """Reloads the translations dict. Use this after updating language setting"""
+    global translations  # pylint: disable=global-statement
+    translations = load_language()
