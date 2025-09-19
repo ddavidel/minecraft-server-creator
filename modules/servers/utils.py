@@ -17,8 +17,9 @@ from modules.servers.forge import ForgeServer
 from modules.servers.java import JavaServer
 from modules.servers.paper import PaperServer
 from modules.logger import RotatingLogger
+from modules.telemetry import TelemetryClient
 
-
+telemetry_client = TelemetryClient()
 logger = RotatingLogger()
 
 TYPE_TO_CLASS = {
@@ -43,6 +44,7 @@ def create_server(settings: dict):
     logger.info("Creating server...")
     instance = TYPE_TO_CLASS[settings["jar_type"]](settings=settings)
     logger.info(f"Created server with uuid {instance.uuid}")
+    telemetry_client.send_event(event_name="server_create",details=settings)
 
 
 def load_servers():

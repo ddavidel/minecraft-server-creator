@@ -15,8 +15,9 @@ from config import settings as mcssettings
 from modules.translations import translate as _
 from modules.classes import ProcessMonitor
 from modules.logger import RotatingLogger
+from modules.telemetry import TelemetryClient
 
-
+telemetry_client = TelemetryClient()
 server_list = []
 global_settings = {}
 logger = RotatingLogger()
@@ -235,6 +236,7 @@ class MinecraftServer:
             output_task = asyncio.create_task(self._console_reader())
             # input_task = asyncio.create_task(self.console_writer())
 
+            telemetry_client.send_event("server_start", details=self.settings)
             # Wait for the server process to finish
             await self.process.wait()
 
@@ -268,6 +270,7 @@ class MinecraftServer:
 
                 # Wait for the process to terminate gracefully
                 await self.process.wait()
+                telemetry_client.send_event("server_stop", details=self.settings)
                 logger.info(f"Server {self.uuid} stopped.")
             except Exception as e:
                 logger.info(f"Error while stopping the server: {e}")
