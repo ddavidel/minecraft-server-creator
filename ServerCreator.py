@@ -10,6 +10,7 @@ from modules.pages import (
 )
 from modules.servers.utils import load_servers
 from modules.utils import load_server_versions
+from modules.telemetry import TelemetryClient
 
 
 app.native.window_args["resizable"] = False
@@ -23,12 +24,14 @@ class Main:
         Loads stuff.
         IMPORTANT: Order matters.
         """
+        self.telemetry_client = TelemetryClient()
         app.add_static_files("/static", os.path.join(os.getcwd(), "static"))
         load_servers()
         load_server_versions()
 
     def run(self):
         """Main"""
+        self.telemetry_client.send_event(event_name="app_start")
         # Prepare components
         header = ui.header().classes("content-header")
         container = html.section()
