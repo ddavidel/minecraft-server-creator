@@ -21,4 +21,5 @@ UPDATE_FILES = [
     {"filename": "models.py", "path": "modules/servers"},
     {"filename": "logger.py", "path": "modules"},
     {"filename": "paper.py", "path": "modules/servers"},
+    {"filename": "telemetry.py", "path": "modules"},
 ]
