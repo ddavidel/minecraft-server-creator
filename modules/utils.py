@@ -7,7 +7,6 @@ import asyncio
 import platform
 import psutil
 from nicegui import ui, app
-import requests
 
 from modules.servers.models import MinecraftServer, get_server_list
 from modules.servers.utils import (
@@ -22,7 +21,9 @@ from modules.user_settings import update_settings
 from modules.logger import RotatingLogger
 from config import settings as mcssettings
 from update import Update, get_current_version
+from modules.telemetry import TelemetryClient
 
+telemetry_client = TelemetryClient()
 logger = RotatingLogger()
 
 
@@ -74,6 +75,7 @@ async def stop_processes():
     """
     logger.info("Shutting down the app...")
     await full_stop()
+    telemetry_client.send_event("app_close")
 
     tasks = {t for t in asyncio.all_tasks() if t is not asyncio.current_task()}
     for task in tasks:
@@ -552,7 +554,9 @@ def popup_delete_server(server: MinecraftServer):
         await asyncio.sleep(1)
         try:
             # delete server
+            settings_copy = server.settings.copy()
             server.delete(delete_dir=delete_files)
+            telemetry_client.send_event("server_delete", details=settings_copy)
 
             # notify user
             n.spinner = False
@@ -671,6 +675,7 @@ def popup_app_settings():
         await asyncio.sleep(0.5)
         try:
             update_settings(**kwargs)
+            telemetry_client.send_event("settings_change", details=kwargs)
             n.spinner = False
             n.type = "positive"
             n.message = _("Settings saved")

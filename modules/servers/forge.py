@@ -10,8 +10,9 @@ from modules.translations import translate as _
 
 from modules.servers.models import MinecraftServer
 from modules.logger import RotatingLogger
+from modules.telemetry import TelemetryClient
 
-
+telemetry_client = TelemetryClient()
 logger = RotatingLogger()
 
 
@@ -106,6 +107,7 @@ class ForgeServer(MinecraftServer):
             output_task = asyncio.create_task(self._console_reader())
             # input_task = asyncio.create_task(self.console_writer())
 
+            telemetry_client.send_event("server_start", details=self.settings)
             # Wait for the server process to finish
             await self.process.wait()
 
@@ -138,6 +140,7 @@ class ForgeServer(MinecraftServer):
                 # Send the 'stop' command to the server
                 if self.process.stdin:
                     self.process.stdin.write(b"stop\n")
+                    telemetry_client.send_event("server_stop", details=self.settings)
                     await asyncio.sleep(2)
                     self.process.stdin.write(b"\n")
                     await self.process.stdin.drain()
