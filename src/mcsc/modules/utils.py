@@ -624,19 +624,20 @@ def popup_update_app():
         await asyncio.sleep(1)
 
         # Run update
-        update_task = asyncio.create_task(update_mcsc())
-        await update_task
+        # update_task = asyncio.create_task(update_mcsc())
+        # await update_task
+        result = update_mcsc()
 
-        notification.spinner = False
-        # if update.completed:
-        #     notification.message = _("Update complete. Restart the app")
-        #     notification.type = "positive"
-        # else:
-        #     notification.message = _("Something went wrong")
-        #     notification.type = "negative"
-        #     sender.enable()
+        if result is True:
+            notification.spinner = False
+            notification.message = _("Update complete. Restart the app")
+            notification.type = "positive"
+        else:
+            notification.message = _("Something went wrong")
+            notification.type = "negative"
+            sender.enable()
 
-        await asyncio.sleep(3)
+        await asyncio.sleep(10)
         notification.dismiss()
 
     with ui.dialog() as popup, ui.card().classes("delete-server-popup"):

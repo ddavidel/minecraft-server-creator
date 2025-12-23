@@ -68,7 +68,7 @@ def check_for_updates() -> bool:
     return latest_version > current_version
 
 # New update workflow
-def update_mcsc():
+def update_mcsc() -> bool:
     """Update the package via pip and restart the program."""
     try:
         # Run update
@@ -77,11 +77,10 @@ def update_mcsc():
         )
 
         logger.info(f"{PACKAGE_NAME} updated successfully!")
-
-        # Restart MCSC
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+        return True
 
     except subprocess.CalledProcessError:
         logger.error(
             f"Error: update failed. Try running 'pip install {PACKAGE_NAME} --upgrate' manually."
         )
+        return False
