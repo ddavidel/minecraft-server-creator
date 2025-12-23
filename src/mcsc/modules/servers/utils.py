@@ -22,7 +22,7 @@ from mcsc.telemetry import TelemetryClient
 telemetry_client = TelemetryClient()
 logger = RotatingLogger()
 
-TYPE_TO_CLASS = {
+TYPE_TO_CLASS: dict[str, MinecraftServer] = {
     0: JavaServer,
     1: PaperServer,
     2: ForgeServer,

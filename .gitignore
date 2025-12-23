@@ -11,3 +11,8 @@ logs/*.log
 .vscode/*
 *.pyc
 *.egg-info
+
+# Python packaging
+dist/
+build/
+*.egg-info/

@@ -76,7 +76,7 @@ def update_mcsc():
             [sys.executable, "-m", "pip", "install", "--upgrade", PACKAGE_NAME]
         )
 
-        logger.info(f"{PACKAGE_NAME} updated successfully! Restarting...")
+        logger.info(f"{PACKAGE_NAME} updated successfully!")
 
         # Restart MCSC
         os.execv(sys.executable, [sys.executable] + sys.argv)
