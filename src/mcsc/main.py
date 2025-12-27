@@ -29,16 +29,17 @@ class ServerCreatorGUI:
         IMPORTANT: Order matters.
         """
         self.telemetry_client = TelemetryClient()
-        app.add_static_files("/static", str(static_dir))
+        # app.add_static_files("/static", str(static_dir))
         # Load server (creates servers.json file if not found)
         load_servers()
         load_server_versions()
         self.migrate_legacy()
 
-    def run(self):
-        """Main"""
-        self.telemetry_client.send_event(event_name="app_start")
+    @staticmethod
+    @ui.page('/')
+    def main_page():
         # Prepare components
+        # app.add_static_files("/static", str(static_dir))
         header = ui.header().classes("content-header")
         container = html.section()
 
@@ -46,6 +47,20 @@ class ServerCreatorGUI:
         build_base_window(header=header)
         build_drawer()
         home(header=header, container=container)
+
+    def run(self):
+        """Main"""
+        # self.telemetry_client.send_event(event_name="app_start")
+        # # Prepare components
+        # header = ui.header().classes("content-header")
+        # container = html.section()
+
+        # # Build view
+        # build_base_window(header=header)
+        # build_drawer()
+        # home(header=header, container=container)
+        self.telemetry_client.send_event(event_name="app_start")
+        app.add_static_files("/static", str(static_dir))
 
         ui.run(
             native=True,
