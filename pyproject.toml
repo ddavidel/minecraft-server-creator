@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minecraft-server-creator"
-version = "2.0.9"
+version = "2.1.0"
 description = "Minecraft Server Creator - Manage Minecraft servers"
 authors = [{ name = "ddavidel", email = "ddavidel@proton.me" }]
 readme = "README.md"

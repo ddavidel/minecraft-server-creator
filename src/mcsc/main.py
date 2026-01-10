@@ -3,6 +3,7 @@
 import json
 import shutil
 from pathlib import Path
+from importlib.metadata import version
 from nicegui import ui, html, app
 
 from mcsc.modules.pages import (
@@ -14,7 +15,7 @@ from mcsc.modules.servers.utils import load_servers, TYPE_TO_CLASS
 from mcsc.modules.utils import load_server_versions
 from mcsc.utils import static_dir
 from mcsc.telemetry import TelemetryClient
-from mcsc.config.settings import DATA_DIR_PATH, SERVER_DIR_PATH
+from mcsc.config.settings import DATA_DIR_PATH, SERVER_DIR_PATH, PACKAGE_NAME
 
 
 app.native.window_args["resizable"] = False
@@ -36,7 +37,7 @@ class ServerCreatorGUI:
         self.migrate_legacy()
 
     @staticmethod
-    @ui.page('/')
+    @ui.page("/")
     def main_page():
         # Prepare components
         # app.add_static_files("/static", str(static_dir))
@@ -59,7 +60,9 @@ class ServerCreatorGUI:
         # build_base_window(header=header)
         # build_drawer()
         # home(header=header, container=container)
-        self.telemetry_client.send_event(event_name="app_start")
+        self.telemetry_client.send_event(
+            event_name="app_start", details={"version": version(PACKAGE_NAME)}
+        )
         app.add_static_files("/static", str(static_dir))
 
         ui.run(
