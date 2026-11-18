@@ -16,3 +16,6 @@ logs/*.log
 dist/
 build/
 *.egg-info/
+
+# Local-only design docs
+docs/

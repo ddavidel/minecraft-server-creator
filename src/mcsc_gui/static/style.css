@@ -247,3 +247,26 @@
     right: 50px !important;
     outline: transparent !important;
 }
+
+/* Ensure NiceGUI default button styles don't make every button primary-colored.
+   Reset generic button background for buttons that don't explicitly opt-in
+   to the primary styling, then re-apply our semantic classes. */
+.q-btn:not(.normal-primary-button):not(.drawer-button-primary):not(.start-button):not(.stop-button) {
+    background-color: rgb(70, 70, 70) !important;
+    color: white !important;
+    box-shadow: none !important;
+}
+
+/* Primary semantic buttons */
+.normal-primary-button,
+.drawer-button-primary {
+    background-color: rgba(15, 255, 175, 0.726) !important;
+    color: black !important;
+}
+
+/* Secondary semantic buttons (explicit) */
+.normal-secondary-button,
+.drawer-button {
+    background-color: rgb(70, 70, 70) !important;
+    color: white !important;
+}

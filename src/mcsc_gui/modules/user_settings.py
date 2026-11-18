@@ -4,8 +4,11 @@ User settings module
 
 import os
 import json
+import logging
 from appdirs import user_data_dir
 
+
+logger = logging.getLogger(__name__)
 
 USER_SETTINGS_PATH = os.path.join(user_data_dir("mcsc"), "config", "user_settings.json")
 
@@ -101,9 +104,6 @@ class UserSettings:
 
     def save_custom_settings(self):
         """Saves the user settings json"""
-        # pylint: disable=import-outside-toplevel
-        from mcsc.modules.logger import RotatingLogger
-        logger = RotatingLogger()
         with open(USER_SETTINGS_PATH, "w", encoding="utf-8") as file:
             json.dump(self.user_settings, file, indent=4)
             file.flush()
@@ -111,9 +111,6 @@ class UserSettings:
 
     def update_settings(self, settings_dict: dict = None, **kwargs):
         """Updates the user settings json"""
-        # pylint: disable=import-outside-toplevel
-        from mcsc.modules.logger import RotatingLogger
-        logger = RotatingLogger()
         logger.info(f"Updating user settings: {settings_dict or kwargs}")
         if settings_dict:
             if not isinstance(settings_dict, dict):

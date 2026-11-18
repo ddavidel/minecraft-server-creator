@@ -14,15 +14,27 @@ MCSC is a user-friendly tool written in Python with a GUI that simplifies the pr
 - **Manage Server Instances**: Keep track of all your servers in one place.
 
 ## Installation
-To install and run MCSC on your local machine:
+MCSC requires Python 3.12+ and Java.
+
+Install it from PyPI and run it:
+```bash
+pip install minecraft-server-creator
+mcsc
+```
+
+To run it from the source code:
 1. Clone the repository:
 `git clone https://github.com/ddavidel/minecraft-server-creator.git`
 
-2. Navigate to the project folder and install the required dependencies:
-`pip install -r requirements.txt`
+2. Navigate to the project folder and install it with its dependencies:
+`pip install -e .`
 
-3. Run the application by double clicking `START.bat` or with the following command:
-`python ServerCreator.py`
+3. Run the application with `mcsc` or `python scripts/start.py` (add `--debug` to log to the console).
+
+## Project structure
+- `src/mcsc_gui`: the desktop app (NiceGUI interface, translations, settings, telemetry, updates).
+- Server management (creating, running, monitoring and configuring servers) is provided by the
+  [pymcsc](https://pypi.org/project/pymcsc/) library, imported as `mcsc`.
 
 ## Upcoming Features
 - **Support for more server types**: In the future updates, MCSC will support creating and managing many popular Minecraft server types.

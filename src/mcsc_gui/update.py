@@ -2,34 +2,16 @@
 Update module for MCSC
 """
 
-import sys
+import logging
 import subprocess
-import os
-import importlib
-import shutil
-from datetime import datetime
+import sys
 from importlib.metadata import version
+
 import requests
 
-from mcsc.config.settings import (
-    UPDATE_BRANCH,
-    GITHUB_REPO,
-    GITHUB_FILE_URL,
-    BACKUP_DIR,
-    PACKAGE_NAME,
-)
-from mcsc.modules.logger import RotatingLogger
+from mcsc_gui.config.settings import PACKAGE_NAME, PYPI_PACKAGE_URL
 
-logger = RotatingLogger()
-
-BASE_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/refs/heads/{UPDATE_BRANCH}"
-
-
-def get_app_dir() -> str:
-    """
-    Get the app directory
-    """
-    return os.path.dirname(os.path.realpath(__file__))
+logger = logging.getLogger(__name__)
 
 
 def get_current_version() -> str:
@@ -52,7 +34,7 @@ def check_for_updates() -> bool:
     logger.info("Checking for updates...")
     current_version = get_current_version()
 
-    response = requests.get(f"https://pypi.org/pypi/{PACKAGE_NAME}/json", timeout=5)
+    response = requests.get(PYPI_PACKAGE_URL, timeout=5)
     if response.status_code == 200:
         latest_version: str = response.json()["info"]["version"]
     else:
@@ -66,6 +48,7 @@ def check_for_updates() -> bool:
         return False
 
     return latest_version > current_version
+
 
 # New update workflow
 def update_mcsc() -> bool:

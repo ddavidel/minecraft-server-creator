@@ -4,7 +4,7 @@ Translations module
 
 import importlib
 
-from mcsc.config.settings import DEFAULT_LANGUAGE
+from mcsc_gui.config.settings import DEFAULT_LANGUAGE
 
 
 languages_map = {
@@ -19,7 +19,7 @@ def load_language():
     If the module is not found, an empty dictionary is returned.
     """
     try:
-        return importlib.import_module(f"mcsc.localization.{DEFAULT_LANGUAGE}").translations
+        return importlib.import_module(f"mcsc_gui.localization.{DEFAULT_LANGUAGE}").translations
 
     except ImportError:
         return {}

@@ -4,12 +4,12 @@ from importlib import resources
 from pathlib import Path
 
 
-static_dir = resources.files("mcsc") / "static"
+static_dir = resources.files("mcsc_gui") / "static"
 
 
 def get_static_path(filename: str) -> Path:
     """Restituisce il path a un file statico nel package"""
-    return resources.files("mcsc.static") / filename
+    return resources.files("mcsc_gui.static") / filename
 
 
 def load_static_file(filename: str, mode: str = "rb"):
