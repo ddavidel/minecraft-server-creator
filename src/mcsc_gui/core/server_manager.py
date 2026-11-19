@@ -4,15 +4,19 @@ Bridge between the GUI and the pymcsc library (imported as ``mcsc``).
 pymcsc owns everything about servers (registry, install, process, monitoring,
 config files). This module adds what the library deliberately leaves to the app:
 the shared ``ServerManager`` instance, telemetry, translated labels and errors,
-and UI notifications.
+and user notifications.
+
+It must not import any UI toolkit: errors are reported through
+:func:`mcsc_gui.core.notifier.get_notifier` and registry changes through the
+``on_server_added`` / ``on_server_removed`` / ``on_server_updated`` callbacks.
+Callbacks may run in the asyncio bridge thread.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
-
-from nicegui import ui
 
 from mcsc import (
     DownloadError,
@@ -33,7 +37,8 @@ from mcsc import (
 )
 
 from mcsc_gui.config import settings as mcssettings
-from mcsc_gui.modules.translations import translate as _
+from mcsc_gui.core.notifier import get_notifier
+from mcsc_gui.core.translations import translate as _
 from mcsc_gui.telemetry import send_event_async
 
 logger = logging.getLogger(__name__)
@@ -68,6 +73,44 @@ ERROR_MESSAGES: tuple[tuple[type[MCSCError], str], ...] = (
 )
 
 _attached: set[str] = set()
+
+ServerCallback = Callable[[MinecraftServer], Any]
+_added_callbacks: list[ServerCallback] = []
+_removed_callbacks: list[ServerCallback] = []
+_updated_callbacks: list[ServerCallback] = []
+
+
+# --------------------------------------------------------------- callbacks
+
+
+def on_server_added(callback: ServerCallback) -> None:
+    """Call ``callback(server)`` after a server is created or registered."""
+    _added_callbacks.append(callback)
+
+
+def on_server_removed(callback: ServerCallback) -> None:
+    """Call ``callback(server)`` after a server is deleted."""
+    _removed_callbacks.append(callback)
+
+
+def on_server_updated(callback: ServerCallback) -> None:
+    """Call ``callback(server)`` after a server's settings (name, RAM) change."""
+    _updated_callbacks.append(callback)
+
+
+def remove_callback(callback: ServerCallback) -> None:
+    """Unregister ``callback`` from every registry event."""
+    for callbacks in (_added_callbacks, _removed_callbacks, _updated_callbacks):
+        while callback in callbacks:
+            callbacks.remove(callback)
+
+
+def _fire(callbacks: list[ServerCallback], server: MinecraftServer) -> None:
+    for callback in list(callbacks):
+        try:
+            callback(server)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception(f"Server callback {callback!r} failed")
 
 
 # ------------------------------------------------------------------ helpers
@@ -110,8 +153,8 @@ def telemetry_details(server: MinecraftServer) -> dict[str, Any]:
 
 
 def notify_error(error: Exception) -> None:
-    """Show an error notification in the current UI context."""
-    ui.notify(error_message(error), type="negative")
+    """Show a translated error notification through the registered notifier."""
+    get_notifier().error(error_message(error))
 
 
 # --------------------------------------------------------------- lifecycle
@@ -144,7 +187,9 @@ def load_servers() -> list[MinecraftServer]:
 
 def register_server(config: ServerConfig) -> MinecraftServer:
     """Register an already installed server (used by the legacy migration)."""
-    return _attach(manager.register(config))
+    server = _attach(manager.register(config))
+    _fire(_added_callbacks, server)
+    return server
 
 
 def get_servers() -> list[MinecraftServer]:
@@ -205,6 +250,7 @@ async def create_server(
         ram_gb=int(ram_gb),
     )
     _attach(server)
+    _fire(_added_callbacks, server)
     await send_event_async("server_create", details=telemetry_details(server))
     return server
 
@@ -217,6 +263,7 @@ def update_server(server: MinecraftServer, name: str, ram_gb: int) -> None:
     server.config.name = name
     server.config.ram_gb = int(ram_gb)
     manager.save()
+    _fire(_updated_callbacks, server)
 
 
 async def delete_server(server: MinecraftServer, delete_files: bool) -> None:
@@ -224,6 +271,11 @@ async def delete_server(server: MinecraftServer, delete_files: bool) -> None:
     details = telemetry_details(server)
     manager.delete(server, delete_files=delete_files)
     _attached.discard(server.id)
+    try:
+        server.remove_state_listener(_on_state_change)
+    except ValueError:
+        pass
+    _fire(_removed_callbacks, server)
     await send_event_async("server_delete", details=details)
 
 

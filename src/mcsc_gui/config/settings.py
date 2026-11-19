@@ -2,7 +2,7 @@
 
 import os
 from appdirs import user_data_dir
-from mcsc_gui.modules.user_settings import UserSettings
+from mcsc_gui.core.user_settings import UserSettings
 _user_settings = UserSettings().user_settings
 
 DEBUG = os.environ.get("MCSC_DEBUG", "").lower() in {"1", "true", "yes"}

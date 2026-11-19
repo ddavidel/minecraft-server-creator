@@ -4,19 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minecraft-server-creator"
-version = "2.1.2"
+version = "3.0.0"
 description = "Minecraft Server Creator - Manage Minecraft servers"
 authors = [{ name = "ddavidel", email = "ddavidel@proton.me" }]
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
-    "nicegui",
     "requests",
     "appdirs",
-    "pywebview",
     "pymcsc>=0.1.0",  # server management, imported as `mcsc`
+    "PySide6-Essentials>=6.8",
+    "qtawesome",
 ]
 requires-python = ">=3.12"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-qt",
+    "pytest-asyncio",
+]
 
 [tool.setuptools]
 package-dir = { "" = "src" }
@@ -26,3 +33,9 @@ mcsc = "mcsc_gui.__main__:main"
 
 [tool.setuptools.package-data]
 "mcsc_gui" = ["static/*", "static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+qt_api = "pyside6"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

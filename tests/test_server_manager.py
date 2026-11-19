@@ -1,5 +1,7 @@
 import asyncio
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,7 +19,24 @@ from mcsc import (
     VersionCatalog,
 )
 
-from mcsc_gui.modules import server_manager as sm
+from mcsc_gui.core import server_manager as sm
+from mcsc_gui.core.notifier import NullNotifier, get_notifier, set_notifier
+
+
+class CoreIsolationTests(unittest.TestCase):
+    def test_core_imports_no_ui_toolkit(self):
+        # Fresh interpreter: the test session itself may already have imported Qt.
+        code = (
+            "import sys\n"
+            "import mcsc_gui.core.server_manager, mcsc_gui.core.migration\n"
+            "import mcsc_gui.core.notifier, mcsc_gui.core.async_bridge\n"
+            "import mcsc_gui.core.user_settings, mcsc_gui.core.logger\n"
+            "bad = sorted({m.split('.')[0] for m in sys.modules} & {'nicegui', 'PySide6', 'webview'})\n"
+            "print(','.join(bad))\n"
+        )
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                                check=True)
+        self.assertEqual(result.stdout.strip(), "")
 
 
 class LegacyRegistryTests(unittest.TestCase):
@@ -97,6 +116,86 @@ class HelperTests(unittest.TestCase):
             "1.21.4": "u1", "1.20.1": "u2", "25w01a": "u3"}})
         with mock.patch.object(sm.manager, "catalog", catalog):
             self.assertEqual(sm.get_versions(0), ["1.21.4", "1.20.1"])
+
+
+class NotifierTests(unittest.TestCase):
+    def tearDown(self):
+        set_notifier(None)
+
+    def test_notify_error_goes_through_registered_notifier(self):
+        received = []
+
+        class Recorder:
+            def info(self, message):
+                received.append(("info", message))
+
+            def success(self, message):
+                received.append(("success", message))
+
+            def error(self, message):
+                received.append(("error", message))
+
+        set_notifier(Recorder())
+        sm.notify_error(EulaNotAcceptedError("x"))
+        self.assertEqual(received, [("error", "EULA not accepted")])
+
+    def test_default_notifier_is_null(self):
+        set_notifier(None)
+        self.assertIsInstance(get_notifier(), NullNotifier)
+        get_notifier().error("logged only")
+
+
+class RegistryCallbackTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.manager = ServerManager(Path(self.tmp.name) / "servers",
+                                     Path(self.tmp.name) / "servers.json")
+        self.patch = mock.patch.object(sm, "manager", self.manager)
+        self.patch.start()
+        self.events = []
+        self.callbacks = [
+            lambda s: self.events.append(("added", s.id)),
+            lambda s: self.events.append(("removed", s.id)),
+            lambda s: self.events.append(("updated", s.id)),
+        ]
+        sm.on_server_added(self.callbacks[0])
+        sm.on_server_removed(self.callbacks[1])
+        sm.on_server_updated(self.callbacks[2])
+
+    def tearDown(self):
+        for callback in self.callbacks:
+            sm.remove_callback(callback)
+        self.patch.stop()
+        sm._attached.clear()  # pylint: disable=protected-access
+        self.tmp.cleanup()
+
+    def test_register_update_delete_fire_callbacks(self):
+        config = ServerConfig("A", "1.21.4", ServerType.VANILLA, id="x",
+                              path=Path(self.tmp.name) / "servers" / "x")
+        server = sm.register_server(config)
+        sm.update_server(server, " Renamed ", 3)
+
+        async def fake_send(event, details=None):
+            pass
+
+        with mock.patch.object(sm, "send_event_async", fake_send):
+            asyncio.run(sm.delete_server(server, delete_files=False))
+
+        self.assertEqual(self.events, [("added", "x"), ("updated", "x"), ("removed", "x")])
+        self.assertEqual(server.config.name, "Renamed")
+        self.assertEqual(server._state_listeners, [])  # pylint: disable=protected-access
+
+    def test_failing_callback_doesnt_break_the_operation(self):
+        def boom(_server):
+            raise RuntimeError("boom")
+
+        sm.on_server_added(boom)
+        try:
+            config = ServerConfig("A", "1.21.4", id="y", path=Path(self.tmp.name) / "y")
+            sm.register_server(config)
+        finally:
+            sm.remove_callback(boom)
+        self.assertIn(("added", "y"), self.events)
 
 
 class CreateServerTests(unittest.TestCase):

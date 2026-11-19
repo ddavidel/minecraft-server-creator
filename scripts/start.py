@@ -1,4 +1,8 @@
-"""Project-local launcher for debugging and local app startup."""
+"""Project-local launcher for debugging and local app startup.
+
+    python scripts/start.py          # start the app from the source tree
+    python scripts/start.py --debug  # with DEBUG logs on the console
+"""
 
 from __future__ import annotations
 
@@ -14,16 +18,12 @@ if str(SRC) not in sys.path:
 
 def main() -> None:
     """Start the app using the repository source tree."""
-    if len(sys.argv) > 1 and sys.argv[1] == "--debug":
+    if "--debug" in sys.argv[1:]:
         os.environ["MCSC_DEBUG"] = "1"
 
-    import mcsc_gui
+    from mcsc_gui.qt_main import main as qt_main  # pylint: disable=import-outside-toplevel
 
-    app = getattr(mcsc_gui, "ServerCreatorGUI", None)
-    if app is None:
-        raise RuntimeError("The package does not expose a ServerCreatorGUI entry point.")
-
-    app().run(debug=os.environ.get("MCSC_DEBUG", "").lower() in {"1", "true", "yes"})
+    sys.exit(qt_main(sys.argv))
 
 
 if __name__ == "__main__":

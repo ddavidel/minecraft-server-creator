@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration for the Windows installer.
+  Paste it in SignPath: Project > Artifact configurations > (default) > Edit.
+
+  The GitHub artifact uploaded by .github/workflows/installer.yml is a zip with
+  a single file, mcsc-setup-<version>.exe, at its root: it gets an Authenticode
+  signature. Product name/version restrictions (required by SignPath
+  Foundation) check the VersionInfo that installer/mcsc.iss writes.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file-set>
+      <include path="mcsc-setup-*.exe" min-matches="1" max-matches="1"
+               product-name="Minecraft Server Creator" />
+      <for-each>
+        <authenticode-sign />
+      </for-each>
+    </pe-file-set>
+  </zip-file>
+</artifact-configuration>

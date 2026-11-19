@@ -13,10 +13,25 @@ logger = logging.getLogger(__name__)
 USER_SETTINGS_PATH = os.path.join(user_data_dir("mcsc"), "config", "user_settings.json")
 
 
-KNOWN_SETTINGS = ["language"]
+# shortcut_prompt_shown: the "add a desktop shortcut?" popup was already shown once
+KNOWN_SETTINGS = ["language", "native_title_bar", "shortcut_prompt_shown"]
+
+
+def _to_bool(value) -> bool:
+    """Bool conversion that also understands the strings "true"/"false"."""
+    if isinstance(value, str):
+        if value.strip().lower() in {"1", "true", "yes", "on"}:
+            return True
+        if value.strip().lower() in {"0", "false", "no", "off", ""}:
+            return False
+        raise ValueError(f"Not a boolean: {value!r}")
+    return bool(value)
+
 
 TYPES_CONVERTION = {
     "language": str,
+    "native_title_bar": _to_bool,
+    "shortcut_prompt_shown": _to_bool,
 }
 
 
