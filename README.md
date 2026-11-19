@@ -22,9 +22,6 @@ MCSC is a user-friendly tool written in Python with a GUI that simplifies the pr
 | --- |
 | ![New server dialog](https://raw.githubusercontent.com/ddavidel/minecraft-server-creator/main/assets/screenshots/new-server.png) |
 
-The screenshots are taken with demo servers by `python scripts/take_screenshots.py`
-(it uses a temporary data folder, so your own servers aren't shown or touched).
-
 ## Installation
 ### Windows installer (no Python needed)
 Download `mcsc-setup-<version>.exe` from the [latest release](https://github.com/ddavidel/minecraft-server-creator/releases/latest)
