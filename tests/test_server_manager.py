@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -50,7 +51,7 @@ class LegacyRegistryTests(unittest.TestCase):
             legacy = {
                 "a": {"name": "Vanilla", "version": "1.21.4", "jar_type": 0, "dedicated_ram": 3,
                       "address": "default", "port": 25565, "uuid": "a",
-                      "folder_path": str(servers_dir / "a") + "\\"},
+                      "folder_path": str(servers_dir / "a") + os.sep},  # trailing separator
                 "b": {"name": "Paper", "version": "1.21.4", "jar_type": 1, "dedicated_ram": 4,
                       "address": "default", "port": 25566, "uuid": "b",
                       "folder_path": str(servers_dir / "b")},

@@ -11,7 +11,7 @@ import sys
 import tempfile
 from importlib.metadata import version
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import requests
 
@@ -162,7 +162,8 @@ def launcher_pid(pid: int | None = None, parents: dict[int, int] | None = None,
         path = image(pid)
         if not path:
             return None
-        stem = Path(path).stem.lower()
+        # Windows-only chain: parse as a Windows path on every OS (tests run on Linux too)
+        stem = PureWindowsPath(path).stem.lower()
         if stem == "mcsc":
             return pid
         if stem not in ("python", "pythonw"):
