@@ -1,6 +1,6 @@
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey)](./LICENSE)
 
-![Demo Image](https://i.imgur.com/K0jyPsE.png)
+![MCSC dashboard](https://raw.githubusercontent.com/ddavidel/minecraft-server-creator/main/assets/screenshots/dashboard.png)
 # MCSC - Minecraft Server Creator
 MCSC is a user-friendly tool written in Python with a GUI that simplifies the process of creating and managing Minecraft servers. Whether you're a beginner or experienced, MCSC allows you to easily set up, run, and control multiple Minecraft servers from a single interface.
 > **Warning**: MCSC is still in development, thus it may not be completely error free.
@@ -12,6 +12,18 @@ MCSC is a user-friendly tool written in Python with a GUI that simplifies the pr
 - **Edit server.properties**: Customize your Minecraft server settings by editing the `server.properties` file with a built-in editor.
 - **User-Friendly GUI**: A simple and intuitive interface designed for both beginners and experienced users.
 - **Manage Server Instances**: Keep track of all your servers in one place.
+
+## Screenshots
+| Server console and resources | Config editor |
+| --- | --- |
+| ![Server detail page](https://raw.githubusercontent.com/ddavidel/minecraft-server-creator/main/assets/screenshots/server.png) | ![server.properties editor](https://raw.githubusercontent.com/ddavidel/minecraft-server-creator/main/assets/screenshots/editor.png) |
+
+| New server |
+| --- |
+| ![New server dialog](https://raw.githubusercontent.com/ddavidel/minecraft-server-creator/main/assets/screenshots/new-server.png) |
+
+The screenshots are taken with demo servers by `python scripts/take_screenshots.py`
+(it uses a temporary data folder, so your own servers aren't shown or touched).
 
 ## Installation
 ### Windows installer (no Python needed)
