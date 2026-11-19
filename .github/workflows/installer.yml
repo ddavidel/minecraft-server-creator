@@ -5,7 +5,13 @@ name: Windows installer
 on:
   release:
     types: [published]
-  workflow_dispatch:   # manual run: test-signed installer, kept as a workflow artifact
+  workflow_dispatch:   # manual run: test-signed installer kept as a workflow artifact, or
+                       # with a tag: (re)build that release's installer and attach it
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach the installer to (e.g. v3.0.1). Leave empty for a test build."
+        required: false
+        type: string
   workflow_call:       # called by release.yml after it creates the release
     inputs:
       tag:
