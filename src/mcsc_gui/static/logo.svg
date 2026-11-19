@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Minecraft Server Creator</title>
+  <!-- Server Block: isometric block whose sides are a server rack -->
+  <polygon points="32,6 56,18 32,30 8,18" fill="#5bbf3a"/>
+  <polygon points="8,18 32,30 32,58 8,46" fill="#9c6b3f"/>
+  <polygon points="32,30 56,18 56,46 32,58" fill="#6e4a2a"/>
+  <polyline points="9.5,18.75 32,30 54.5,18.75" fill="none" stroke="#2f6e1b" stroke-width="1.5" stroke-linejoin="round"/>
+  <g stroke="#16181e" stroke-width="2.5" stroke-linecap="round">
+    <line x1="12" y1="27" x2="28" y2="35"/>
+    <line x1="12" y1="35" x2="28" y2="43"/>
+    <line x1="12" y1="43" x2="28" y2="51"/>
+    <line x1="36" y1="38" x2="45" y2="33.5"/>
+    <line x1="36" y1="47" x2="45" y2="42.5"/>
+  </g>
+  <circle cx="50" cy="31" r="2" fill="#5bbf3a"/>
+  <circle cx="50" cy="40" r="2" fill="#5bbf3a"/>
+</svg>

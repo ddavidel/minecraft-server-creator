@@ -1,0 +1,86 @@
+# Builds the Windows installer, signs it with SignPath and attaches it to the
+# GitHub release. Setup (one time) is described in installer/README.md.
+name: Windows installer
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:   # manual run: test-signed installer, kept as a workflow artifact
+
+permissions:
+  contents: write      # upload the installer to the release
+  actions: read        # SignPath downloads the unsigned artifact of this run
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+
+      - name: Check that the release tag matches pyproject.toml
+        if: github.event_name == 'release'
+        shell: pwsh
+        run: |
+          $version = python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])"
+          $tag = "${{ github.event.release.tag_name }}".TrimStart('v')
+          if ($tag -ne $version) { throw "Release tag $tag doesn't match pyproject version $version" }
+
+      - name: Build installer
+        run: python installer/build_installer.py
+
+      - name: Upload unsigned installer
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcsc-setup-unsigned
+          path: dist/installer/*.exe
+          if-no-files-found: error
+
+      - name: Sign with SignPath
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ github.event_name == 'release' && 'release-signing' || 'test-signing' }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          # release-signing needs a manual approval in SignPath: give it time
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+
+      - name: Verify signature
+        shell: pwsh
+        run: |
+          Get-ChildItem signed -Filter *.exe | ForEach-Object {
+            $sig = Get-AuthenticodeSignature $_.FullName
+            "$($_.Name): $($sig.Status) - $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne 'Valid' -and '${{ github.event_name }}' -eq 'release') {
+              throw "$($_.Name) is not validly signed"
+            }
+          }
+
+      - name: Upload signed installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcsc-setup
+          path: signed/*.exe
+          if-no-files-found: error
+
+      - name: Attach installer to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: gh release upload "${{ github.event.release.tag_name }}" (Get-ChildItem signed -Filter *.exe).FullName --clobber

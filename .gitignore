@@ -7,3 +7,15 @@ servers/*
 backups/
 user_settings.json
 logs/*.log
+.venv/*
+.vscode/*
+*.pyc
+*.egg-info
+
+# Python packaging
+dist/
+build/
+*.egg-info/
+
+# Local-only design docs
+docs/
