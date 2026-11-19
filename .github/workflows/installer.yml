@@ -58,13 +58,41 @@ jobs:
           path: dist/installer/*.exe
           if-no-files-found: error
 
+      # Signing is optional: without the SignPath settings the installer ships
+      # unsigned (Windows SmartScreen warns about an unknown publisher).
+      # Releases use the release-signing policy only once the repository
+      # variable SIGNPATH_RELEASE_SIGNING is 'true' (it needs a CA certificate);
+      # manual runs use test-signing.
+      - name: Choose signing policy
+        id: policy
+        shell: pwsh
+        env:
+          HAS_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
+          ORG_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          RELEASE_SIGNING: ${{ vars.SIGNPATH_RELEASE_SIGNING }}
+        run: |
+          if ($env:HAS_TOKEN -ne 'true' -or -not $env:ORG_ID) {
+            $policy = ''
+            "::warning::SignPath is not configured: the installer is NOT signed"
+          } elseif ($env:RELEASE_TAG -and $env:RELEASE_SIGNING -ne 'true') {
+            $policy = ''
+            "::warning::Release signing is not enabled (SIGNPATH_RELEASE_SIGNING): the installer is NOT signed"
+          } elseif ($env:RELEASE_TAG) {
+            $policy = 'release-signing'
+          } else {
+            $policy = 'test-signing'
+          }
+          "Signing policy: $(if ($policy) { $policy } else { 'none' })"
+          "slug=$policy" >> $env:GITHUB_OUTPUT
+
       - name: Sign with SignPath
+        if: steps.policy.outputs.slug != ''
         uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ env.RELEASE_TAG != '' && 'release-signing' || 'test-signing' }}
+          signing-policy-slug: ${{ steps.policy.outputs.slug }}
           github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
           wait-for-completion: true
           # release-signing needs a manual approval in SignPath: give it time
@@ -72,6 +100,7 @@ jobs:
           output-artifact-directory: signed
 
       - name: Verify signature
+        if: steps.policy.outputs.slug != ''
         shell: pwsh
         run: |
           Get-ChildItem signed -Filter *.exe | ForEach-Object {
@@ -83,6 +112,7 @@ jobs:
           }
 
       - name: Upload signed installer
+        if: steps.policy.outputs.slug != ''
         uses: actions/upload-artifact@v4
         with:
           name: mcsc-setup
@@ -93,5 +123,6 @@ jobs:
         if: env.RELEASE_TAG != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          INSTALLER_DIR: ${{ steps.policy.outputs.slug != '' && 'signed' || 'dist/installer' }}
         shell: pwsh
-        run: gh release upload "$env:RELEASE_TAG" (Get-ChildItem signed -Filter *.exe).FullName --clobber
+        run: gh release upload "$env:RELEASE_TAG" (Get-ChildItem $env:INSTALLER_DIR -Filter *.exe).FullName --clobber
