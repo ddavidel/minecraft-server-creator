@@ -12,6 +12,8 @@ MCSC is a user-friendly tool written in Python with a GUI that simplifies the pr
 - **Edit server.properties**: Customize your Minecraft server settings by editing the `server.properties` file with a built-in editor.
 - **User-Friendly GUI**: A simple and intuitive interface designed for both beginners and experienced users.
 - **Manage Server Instances**: Keep track of all your servers in one place.
+- **Backups**: Back up a server with one click and restore it later (the current state is saved first). Backups can also be automatic, when a server starts or stops (app-wide or per server), keeping the latest ones. They are stored in the app data folder, under `backups/<server id>/`.
+- **Export and Import**: Export a server to a single `.zip` to move it to another PC, then import it there, or import an existing server folder made outside MCSC (it is copied, never moved).
 
 ## Screenshots
 | Server console and resources | Config editor |

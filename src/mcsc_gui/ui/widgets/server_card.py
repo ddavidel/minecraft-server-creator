@@ -63,6 +63,7 @@ class ServerCard(Card):
             f"{config.server_type.label} · {config.version} · {config.ram_gb} GB RAM"
         )
         self.badge.set_state(self.server.state)
+        self.badge.set_activity(sm.activity_label(self.server))
         self.start_button.setEnabled(sm.can_start(self.server))
         self.stop_button.setEnabled(sm.can_stop(self.server))
         self.setAccessibleName(f"{config.name}, {self.badge.text}")

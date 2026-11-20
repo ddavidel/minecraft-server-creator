@@ -14,10 +14,19 @@ USER_SETTINGS_PATH = os.path.join(user_data_dir("mcsc"), "config", "user_setting
 
 
 # shortcut_prompt_shown: the "add a desktop shortcut?" popup was already shown once
-KNOWN_SETTINGS = ["language", "native_title_bar", "shortcut_prompt_shown"]
+# auto_backup: app-wide automatic backup policy (see AUTO_BACKUP_POLICIES)
+# backup_retention: automatic backups kept per server (0 = unlimited)
+KNOWN_SETTINGS = [
+    "language", "native_title_bar", "shortcut_prompt_shown", "auto_backup", "backup_retention",
+]
 
 # Use the OS title bar unless the user opts into the custom one
 DEFAULT_NATIVE_TITLE_BAR = True
+
+# Automatic backups: when a server is backed up without the user asking
+AUTO_BACKUP_POLICIES = ("never", "on_start", "on_stop")
+DEFAULT_AUTO_BACKUP = "never"
+DEFAULT_BACKUP_RETENTION = 5
 
 
 def _to_bool(value) -> bool:
@@ -31,10 +40,28 @@ def _to_bool(value) -> bool:
     return bool(value)
 
 
+def _to_policy(value) -> str:
+    """An automatic backup policy (one of :data:`AUTO_BACKUP_POLICIES`)."""
+    value = str(value).strip().lower()
+    if value not in AUTO_BACKUP_POLICIES:
+        raise ValueError(f"Not a backup policy: {value!r}")
+    return value
+
+
+def _to_retention(value) -> int:
+    """A non negative number of backups to keep (0 = unlimited)."""
+    value = int(value)
+    if value < 0:
+        raise ValueError(f"Retention can't be negative: {value}")
+    return value
+
+
 TYPES_CONVERTION = {
     "language": str,
     "native_title_bar": _to_bool,
     "shortcut_prompt_shown": _to_bool,
+    "auto_backup": _to_policy,
+    "backup_retention": _to_retention,
 }
 
 

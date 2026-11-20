@@ -12,7 +12,8 @@ from mcsc_gui.ui.widgets.common import label
 
 class EmptyState(QWidget):
     def __init__(self, icon_name: str, title: str, text: str = "",
-                 action: QPushButton | None = None, parent: QWidget | None = None) -> None:
+                 action: QPushButton | QWidget | None = None,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)

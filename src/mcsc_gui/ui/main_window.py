@@ -33,6 +33,7 @@ from mcsc_gui.ui.dialogs.confirm_quit import ConfirmQuitDialog, ShutdownDialog
 from mcsc_gui.ui.dialogs.create_server import CreateServerDialog
 from mcsc_gui.ui.dialogs.delete_server import DeleteServerDialog
 from mcsc_gui.ui.dialogs.edit_server import EditServerDialog
+from mcsc_gui.ui.dialogs.import_server import ImportServerDialog
 from mcsc_gui.ui.dialogs.shortcut import ShortcutPromptDialog, mark_prompt_shown, should_prompt
 from mcsc_gui.ui.dialogs.update_app import UpdateAppDialog, safe_check_for_updates
 from mcsc_gui.ui.navigator import DASHBOARD, EDITOR, SERVER, Navigator, Route
@@ -54,6 +55,7 @@ APP_TITLE = "Minecraft Server Creator"
 DEFAULT_SIZE = (1300, 800)
 MINIMUM_SIZE = (1000, 640)
 TELEMETRY_CLOSE_TIMEOUT = 6  # seconds
+BACKUP_CLOSE_TIMEOUT = 600  # extra seconds to quit when servers are backed up on stop
 
 
 async def _shutdown_servers() -> None:
@@ -118,6 +120,7 @@ class MainWindow(QMainWindow):
         # ------------------------------------------------------------ wiring
         self.dashboard.open_server.connect(self.navigator.to_server)
         self.dashboard.new_server_requested.connect(self.open_create_dialog)
+        self.dashboard.import_server_requested.connect(self.open_import_dialog)
         self.sidebar.dashboard_clicked.connect(self.navigator.to_dashboard)
         self.sidebar.new_server_clicked.connect(self.open_create_dialog)
         self.sidebar.updates_clicked.connect(self.on_updates_clicked)
@@ -184,6 +187,13 @@ class MainWindow(QMainWindow):
             return
         dialog = CreateServerDialog(self)
         dialog.created.connect(self.navigator.to_dashboard)
+        self.open_dialog(dialog)
+
+    def open_import_dialog(self) -> None:
+        if self._shutting_down:
+            return
+        dialog = ImportServerDialog(self)
+        dialog.imported.connect(self.navigator.to_server)
         self.open_dialog(dialog)
 
     def open_delete_dialog(self, server) -> None:
@@ -298,8 +308,9 @@ class MainWindow(QMainWindow):
         if confirm and hasattr(page, "can_leave") and not page.can_leave():
             page.confirm_leave(lambda: self.request_quit(confirm=confirm, update=update))
             return
-        if confirm and sm.any_server_active():
-            dialog = ConfirmQuitDialog(self)
+        operations = sm.any_operation_running()
+        if confirm and (sm.any_server_active() or operations):
+            dialog = ConfirmQuitDialog(self, operations=operations)
             dialog.accepted.connect(lambda: self._shutdown(update=update))
             self.open_dialog(dialog)
             return
@@ -311,11 +322,16 @@ class MainWindow(QMainWindow):
         self._shutting_down = True
         self._update_on_exit = update
         logger.info("Shutting down the app...")
-        if sm.any_server_active():
-            self.open_dialog(ShutdownDialog(self))
+        # "On stop" automatic backups run after the servers stop: wait for them too
+        backing_up = sm.pending_backups() > 0 or any(
+            sm.effective_backup_policy(s) == "on_stop" for s in sm.manager.active_servers)
+        if sm.any_server_active() or backing_up:
+            self.open_dialog(ShutdownDialog(self, backing_up=backing_up))
         # Never wait forever: servers are killed after SERVER_STOP_TIMEOUT anyway
-        QTimer.singleShot((mcssettings.SERVER_STOP_TIMEOUT + TELEMETRY_CLOSE_TIMEOUT + 10) * 1000,
-                          self._finish_quit)
+        timeout = mcssettings.SERVER_STOP_TIMEOUT + TELEMETRY_CLOSE_TIMEOUT + 10
+        if backing_up:
+            timeout += BACKUP_CLOSE_TIMEOUT
+        QTimer.singleShot(timeout * 1000, self._finish_quit)
         future = run_task(_shutdown_servers(), on_success=lambda _r: self._finish_quit(),
                           on_error=lambda _e: self._finish_quit(), show_errors=False)
         if future is None:

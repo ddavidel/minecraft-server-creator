@@ -123,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         migrate_legacy()
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Legacy migration failed")
+    sm.cleanup_temporary_files()  # interrupted backups, restores and imports
 
     bridge = get_bridge()
     bridge.start()
