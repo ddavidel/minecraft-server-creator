@@ -16,6 +16,9 @@ USER_SETTINGS_PATH = os.path.join(user_data_dir("mcsc"), "config", "user_setting
 # shortcut_prompt_shown: the "add a desktop shortcut?" popup was already shown once
 KNOWN_SETTINGS = ["language", "native_title_bar", "shortcut_prompt_shown"]
 
+# Use the OS title bar unless the user opts into the custom one
+DEFAULT_NATIVE_TITLE_BAR = True
+
 
 def _to_bool(value) -> bool:
     """Bool conversion that also understands the strings "true"/"false"."""
