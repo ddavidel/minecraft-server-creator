@@ -31,3 +31,8 @@ SERVERS_JSON_PATH = os.path.join(DATA_DIR_PATH, "config", "servers.json")
 JAR_VERSIONS_FILTER = "stable"  # "stable", "none"
 MAX_LOG_LINES = 300
 SERVER_STOP_TIMEOUT = 60  # seconds before a server that doesn't stop gets killed
+
+# BACKUPS (archives are created by pymcsc in BACKUPS_DIR_PATH/<server id>/)
+BACKUPS_DIR_PATH = os.path.join(DATA_DIR_PATH, "backups")
+# Per-server app preferences (automatic backup override), keyed by server id
+SERVER_PREFS_PATH = os.path.join(DATA_DIR_PATH, "config", "server_prefs.json")

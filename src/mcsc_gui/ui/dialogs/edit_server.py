@@ -1,8 +1,8 @@
-"""Edit server dialog (US4): name and RAM; type, version and EULA are read-only."""
+"""Edit server dialog (US4): name, RAM and automatic backups; type, version and EULA are read-only."""
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLineEdit, QWidget
+from PySide6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLineEdit, QWidget
 
 from mcsc import MinecraftServer, suggested_ram_gb, total_ram_gb
 
@@ -47,6 +47,13 @@ class EditServerDialog(OverlayDialog):
         row.addWidget(Field(_("Server Version"), version_edit), 1)
         self.body.addLayout(row)
 
+        self.auto_backup = QComboBox()
+        for policy in sm.SERVER_BACKUP_POLICIES:
+            self.auto_backup.addItem(_(sm.BACKUP_POLICY_LABELS[policy]), policy)
+        self._initial_policy = sm.server_backup_policy(server)
+        self.auto_backup.setCurrentIndex(max(0, self.auto_backup.findData(self._initial_policy)))
+        self.body.addWidget(Field(_("Automatic backups"), self.auto_backup))
+
         self.cancel_button = self.add_button(button(_("Cancel"), "close"))
         self.save_button = self.add_button(button(_("Save"), "save", variant="primary"))
         self.cancel_button.clicked.connect(self.reject)
@@ -69,8 +76,10 @@ class EditServerDialog(OverlayDialog):
         def failed(_error: Exception) -> None:
             self.set_busy(False)
 
+        policy = self.auto_backup.currentData()
         run_blocking(
             sm.update_server, self.server, self.name.widget.text(), self.ram.value(),
+            policy if policy != self._initial_policy else None,
             progress=_("Saving settings of server '{name}'", name=self.server.name),
             success=_("Settings saved!"),
             disable=[self.save_button, self.cancel_button],

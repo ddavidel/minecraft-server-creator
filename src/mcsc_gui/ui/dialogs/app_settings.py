@@ -1,16 +1,31 @@
-"""App settings dialog (US6): version, language, native title bar."""
+"""App settings dialog (US6): version, language, native title bar, automatic backups."""
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from mcsc_gui.config import settings as mcssettings
+from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core import shortcuts
 from mcsc_gui.core.translations import languages_map
 from mcsc_gui.core.translations import translate as _
-from mcsc_gui.core.user_settings import DEFAULT_NATIVE_TITLE_BAR, UserSettings
+from mcsc_gui.core.user_settings import (
+    AUTO_BACKUP_POLICIES,
+    DEFAULT_AUTO_BACKUP,
+    DEFAULT_BACKUP_RETENTION,
+    DEFAULT_NATIVE_TITLE_BAR,
+    UserSettings,
+)
 from mcsc_gui.telemetry import send_event_async
 from mcsc_gui.ui.dialogs.fields import Field
 from mcsc_gui.ui.dialogs.shortcut import create_shortcuts, menu_name
@@ -54,6 +69,29 @@ class AppSettingsDialog(OverlayDialog):
         self.native_title_bar.setChecked(bool(current.get("native_title_bar", DEFAULT_NATIVE_TITLE_BAR)))
         self.body.addWidget(self.native_title_bar)
 
+        backups = QHBoxLayout()
+        backups.setSpacing(TOKENS.spacing.md)
+        self.auto_backup = QComboBox()
+        for policy in AUTO_BACKUP_POLICIES:
+            self.auto_backup.addItem(_(sm.BACKUP_POLICY_LABELS[policy]), policy)
+        index = self.auto_backup.findData(current.get("auto_backup", DEFAULT_AUTO_BACKUP))
+        self.auto_backup.setCurrentIndex(max(0, index))
+        backups.addWidget(Field(_("Automatic backups"), self.auto_backup), 1)
+        self.backup_retention = QSpinBox()
+        self.backup_retention.setRange(0, 100)
+        # The QSS padding doesn't reach the spin box's inner text field: align it by hand
+        self.backup_retention.lineEdit().setTextMargins(TOKENS.spacing.md, 0, 0, 0)
+        self.backup_retention.setSpecialValueText(_("Unlimited"))
+        try:
+            retention = int(current.get("backup_retention", DEFAULT_BACKUP_RETENTION))
+        except (TypeError, ValueError):
+            retention = DEFAULT_BACKUP_RETENTION
+        self.backup_retention.setValue(retention)
+        self.backup_retention.setToolTip(
+            _("Automatic backups kept per server. Manual backups are never deleted."))
+        backups.addWidget(Field(_("Automatic backups to keep"), self.backup_retention), 1)
+        self.body.addLayout(backups)
+
         self.shortcut_button = None
         if shortcuts.is_supported():
             shortcut_row = QHBoxLayout()
@@ -83,6 +121,8 @@ class AppSettingsDialog(OverlayDialog):
         return {
             "language": self.language.currentData(),
             "native_title_bar": self.native_title_bar.isChecked(),
+            "auto_backup": self.auto_backup.currentData(),
+            "backup_retention": self.backup_retention.value(),
         }
 
     def submit(self) -> None:

@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt
 from mcsc import ServerManager, ServerState
 
 from mcsc_gui.core import server_manager as sm
+from mcsc_gui.core.server_prefs import ServerPrefs
 from mcsc_gui.ui.dialogs.create_server import CreateServerDialog
 from mcsc_gui.ui.dialogs.delete_server import DeleteServerDialog
 from mcsc_gui.ui.dialogs.edit_server import EditServerDialog
@@ -119,8 +120,10 @@ def test_delete_button_needs_exact_name(qtbot, host, make_server):
 
 @pytest.fixture
 def registry(tmp_path: Path):
-    manager = ServerManager(tmp_path / "servers", tmp_path / "servers.json")
+    manager = ServerManager(tmp_path / "servers", tmp_path / "servers.json",
+                            backups_dir=tmp_path / "backups")
     with mock.patch.object(sm, "manager", manager), \
+            mock.patch.object(sm, "prefs", ServerPrefs(tmp_path / "prefs.json")), \
             mock.patch.object(sm, "send_event_async", new=mock.AsyncMock()):
         yield manager
 

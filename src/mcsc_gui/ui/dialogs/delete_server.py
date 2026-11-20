@@ -30,6 +30,10 @@ class DeleteServerDialog(OverlayDialog):
         self.body.addWidget(self.confirm_field)
         self.delete_files = QCheckBox(_("Delete server folder"))
         self.body.addWidget(self.delete_files)
+        self.delete_backups = QCheckBox(_("Also delete its backups"))
+        self.delete_backups.setEnabled(False)
+        self.body.addWidget(self.delete_backups)
+        self.delete_files.toggled.connect(self._on_delete_files)
 
         self.cancel_button = self.add_button(button(_("Cancel"), "close"))
         self.delete_button = self.add_button(button(_("Delete"), "delete", variant="danger"))
@@ -38,6 +42,11 @@ class DeleteServerDialog(OverlayDialog):
         self.confirm_edit.textChanged.connect(self._update_enabled)
         self.confirm_edit.returnPressed.connect(self.submit)
         self._update_enabled()
+
+    def _on_delete_files(self, checked: bool) -> None:
+        self.delete_backups.setEnabled(checked and not self.busy)
+        if not checked:
+            self.delete_backups.setChecked(False)
 
     def _matches(self) -> bool:
         return self.confirm_edit.text() == self.server.name
@@ -61,12 +70,15 @@ class DeleteServerDialog(OverlayDialog):
         def failed(_error: Exception) -> None:
             self.set_busy(False)
             self._update_enabled()
+            self._on_delete_files(self.delete_files.isChecked())
 
         run_task(
-            sm.delete_server(self.server, delete_files=self.delete_files.isChecked()),
+            sm.delete_server(self.server, delete_files=self.delete_files.isChecked(),
+                             delete_backups=self.delete_backups.isChecked()),
             progress=_("Deleting server {name}", name=self.server.name),
             success=_("Server deleted"),
-            disable=[self.cancel_button, self.confirm_edit, self.delete_files],
+            disable=[self.cancel_button, self.confirm_edit, self.delete_files,
+                     self.delete_backups],
             on_success=done,
             on_error=failed,
         )

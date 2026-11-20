@@ -24,6 +24,8 @@ class Notifier(Protocol):
 
     def error(self, message: str) -> None: ...
 
+    # Optional: notifiers without ``warning`` get :meth:`error` (see :func:`notify_warning`).
+
 
 class NullNotifier:
     """Default notifier: only logs. Used in tests and before the UI is ready."""
@@ -33,6 +35,9 @@ class NullNotifier:
 
     def success(self, message: str) -> None:
         logger.info(message)
+
+    def warning(self, message: str) -> None:
+        logger.warning(message)
 
     def error(self, message: str) -> None:
         logger.error(message)
@@ -50,3 +55,9 @@ def set_notifier(notifier: Notifier | None) -> None:
 def get_notifier() -> Notifier:
     """The currently registered notifier."""
     return _notifier
+
+
+def notify_warning(message: str) -> None:
+    """Show a warning through the registered notifier (as an error if it has no ``warning``)."""
+    notifier = get_notifier()
+    getattr(notifier, "warning", notifier.error)(message)

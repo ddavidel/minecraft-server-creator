@@ -1,20 +1,33 @@
-"""Server detail: header, live console, resource stats and actions (US2)."""
+"""Server detail: header, live console, resource stats, actions and backups (US2)."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QWidget
+import re
+from collections.abc import Callable
+from pathlib import Path
 
-from mcsc import MinecraftServer, ServerState
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
+
+from mcsc import Backup, MinecraftServer, ServerState
 
 from mcsc_gui.config import settings as mcssettings
 from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.ui.config_files import config_file_label, visible_config_files
+from mcsc_gui.ui.dialogs.restore_backup import DeleteBackupDialog, RestoreBackupDialog
 from mcsc_gui.ui.server_events import ServerEvents
-from mcsc_gui.ui.tasks import run_task
+from mcsc_gui.ui.tasks import FileProgress, run_blocking, run_task
 from mcsc_gui.ui.theme.tokens import TOKENS
 from mcsc_gui.ui.usage import UsageHistory, usage_history
+from mcsc_gui.ui.widgets.backup_list import BackupList
 from mcsc_gui.ui.widgets.card import Card
 from mcsc_gui.ui.widgets.common import button, icon_button, label
 from mcsc_gui.ui.widgets.console import ConsoleView
@@ -23,6 +36,20 @@ from mcsc_gui.ui.widgets.status_badge import StatusBadge
 from mcsc_gui.core.os_utils import open_file_explorer
 
 USAGE_INTERVAL_MS = 1000
+SIDE_WIDTH = 320
+_UNSAFE_FILE_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
+
+
+def pick_export_path(parent: QWidget, server: MinecraftServer) -> str | None:
+    """Native save dialog (it asks before overwriting an existing file)."""
+    safe = _UNSAFE_FILE_CHARS.sub("_", server.name).strip(" .") or "server"
+    path, _filter = QFileDialog.getSaveFileName(
+        parent, _("Export server"), str(Path.home() / f"{safe}.zip"),
+        _("MCSC export") + " (*.zip)",
+    )
+    if not path:
+        return None
+    return path if path.lower().endswith(".zip") else path + ".zip"
 
 
 class ServerDetailPage(QWidget):
@@ -34,10 +61,14 @@ class ServerDetailPage(QWidget):
     delete_requested = Signal(str)  # server_id
 
     def __init__(self, server: MinecraftServer, events: ServerEvents,
-                 history: UsageHistory = usage_history, parent: QWidget | None = None) -> None:
+                 history: UsageHistory = usage_history, parent: QWidget | None = None, *,
+                 backups: Callable[[MinecraftServer], list[Backup]] = sm.list_backups,
+                 choose_export_path: Callable[[QWidget, MinecraftServer], str | None]
+                 = pick_export_path) -> None:
         super().__init__(parent)
         self.setObjectName("Page")
         self.server = server
+        self._choose_export_path = choose_export_path
         self._events = events
         self._history = history
         self._disposed = False
@@ -87,7 +118,7 @@ class ServerDetailPage(QWidget):
         side = QVBoxLayout()
         side.setSpacing(s.md)
         side_widget = QWidget()
-        side_widget.setFixedWidth(320)
+        side_widget.setFixedWidth(SIDE_WIDTH)
         side_widget.setLayout(side)
         side.setContentsMargins(0, 0, 0, 0)
 
@@ -116,6 +147,10 @@ class ServerDetailPage(QWidget):
         self._files_layout = QVBoxLayout()
         self._files_layout.setSpacing(2)
         actions.layout_.addLayout(self._files_layout)
+        self.export_button = button(_("Export server"), "export", variant="ghost")
+        self.export_button.setStyleSheet("text-align: left;")
+        self.export_button.clicked.connect(self.export)
+        actions.layout_.addWidget(self.export_button)
         self.delete_button = button(_("Delete server"), "delete", variant="ghost",
                                     icon_color=p.danger)
         self.delete_button.setProperty("tone", "danger")
@@ -123,8 +158,24 @@ class ServerDetailPage(QWidget):
         self.delete_button.clicked.connect(lambda: self.delete_requested.emit(self.server.id))
         actions.layout_.addWidget(self.delete_button)
         side.addWidget(actions)
+
+        side.addSpacing(s.sm)
+        self.backup_list = BackupList(lambda: backups(self.server))
+        self.backup_list.backup_requested.connect(self.back_up)
+        self.backup_list.open_folder_requested.connect(
+            lambda: open_file_explorer(sm.backups_folder(self.server)))
+        self.backup_list.restore_requested.connect(self.confirm_restore)
+        self.backup_list.delete_requested.connect(self.confirm_delete_backup)
+        side.addWidget(self.backup_list)
         side.addStretch(1)
-        body.addWidget(side_widget)
+
+        # The side column scrolls when the window is too short for it
+        side_scroll = QScrollArea()
+        side_scroll.setWidgetResizable(True)
+        side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        side_scroll.setWidget(side_widget)
+        side_scroll.setFixedWidth(SIDE_WIDTH + side_scroll.verticalScrollBar().sizeHint().width())
+        body.addWidget(side_scroll)
         root.addLayout(body, 1)
 
         self.file_buttons: dict[str, QWidget] = {}
@@ -135,6 +186,8 @@ class ServerDetailPage(QWidget):
         events.output_lines.connect(self._on_output)
         events.state_changed.connect(self._on_state_changed)
         events.server_updated.connect(self._on_server_updated)
+        events.busy_changed.connect(self._on_busy_changed)
+        events.backups_changed.connect(self._on_backups_changed)
 
         self.usage_timer = QTimer(self)
         self.usage_timer.setInterval(USAGE_INTERVAL_MS)
@@ -157,6 +210,8 @@ class ServerDetailPage(QWidget):
             (self._events.output_lines, self._on_output),
             (self._events.state_changed, self._on_state_changed),
             (self._events.server_updated, self._on_server_updated),
+            (self._events.busy_changed, self._on_busy_changed),
+            (self._events.backups_changed, self._on_backups_changed),
         ):
             try:
                 signal.disconnect(slot)
@@ -174,10 +229,29 @@ class ServerDetailPage(QWidget):
             f"{_('Port')} {config.port}"
         )
         self.badge.set_state(server.state)
+        self.badge.set_activity(sm.activity_label(server))
         self.start_button.setEnabled(sm.can_start(server))
         self.stop_button.setEnabled(sm.can_stop(server))
         self.console.set_input_enabled(server.is_active)
         self._refresh_files()
+        self._refresh_backup_actions()
+
+    def _refresh_backup_actions(self) -> None:
+        server = self.server
+        busy = sm.is_busy(server)
+        can_backup = sm.can_backup(server)
+        if busy:
+            reason = sm.activity_label(server)
+        elif not can_backup:
+            reason = _("Stop the server to back it up or restore a backup")
+        else:
+            reason = None
+        self.backup_list.set_actions_enabled(can_backup, reason, delete_enabled=not busy)
+        self.export_button.setEnabled(can_backup)
+        self.export_button.setToolTip(
+            "" if can_backup else (reason or _("Stop the server to export it")))
+        self.delete_button.setEnabled(not busy)
+        self.edit_button.setEnabled(not busy)
 
     def _refresh_files(self) -> None:
         files = visible_config_files(self.server)
@@ -219,6 +293,14 @@ class ServerDetailPage(QWidget):
             self.refresh()
             self.title_changed.emit(self.server.name)
 
+    def _on_busy_changed(self, server_id: str) -> None:
+        if server_id == self.server.id:
+            self.refresh()
+
+    def _on_backups_changed(self, server_id: str) -> None:
+        if server_id == self.server.id:
+            self.backup_list.reload()
+
     def _sample_usage(self) -> None:
         usage = self._history.sample(self.server)
         active = self.server.is_active
@@ -245,3 +327,37 @@ class ServerDetailPage(QWidget):
     def _send_command(self, command: str) -> None:
         # "stop" is routed to stop_server (graceful, with SERVER_STOP_TIMEOUT)
         run_task(sm.send_command(self.server, command))
+
+    # -------------------------------------------------------------- backups
+
+    def back_up(self) -> None:
+        tracker = FileProgress(_("Backing up server {name}", name=self.server.name))
+        run_task(sm.backup_server(self.server, progress=tracker), progress=tracker.text,
+                 success=_("Backup created"), tracker=tracker,
+                 disable=[self.backup_list.backup_button])
+
+    def confirm_restore(self, backup: Backup) -> None:
+        dialog = RestoreBackupDialog(self, self.server, backup)
+        dialog.accepted.connect(lambda: self.restore(backup))
+        dialog.open()
+
+    def restore(self, backup: Backup) -> None:
+        tracker = FileProgress(_("Restoring backup of server {name}", name=self.server.name))
+        run_task(sm.restore_backup(self.server, backup, progress=tracker), progress=tracker.text,
+                 success=_("Backup restored"), tracker=tracker)
+
+    def confirm_delete_backup(self, backup: Backup) -> None:
+        dialog = DeleteBackupDialog(self, backup)
+        dialog.accepted.connect(lambda: self.delete_backup(backup))
+        dialog.open()
+
+    def delete_backup(self, backup: Backup) -> None:
+        run_blocking(sm.delete_backup, backup, success=_("Backup deleted"))
+
+    def export(self) -> None:
+        path = self._choose_export_path(self, self.server)
+        if not path:
+            return
+        tracker = FileProgress(_("Exporting server {name}", name=self.server.name))
+        run_task(sm.export_server(self.server, path, progress=tracker), progress=tracker.text,
+                 success=_("Server exported"), tracker=tracker, disable=[self.export_button])
