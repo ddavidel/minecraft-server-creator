@@ -12,7 +12,7 @@ license = { file = "LICENSE" }
 dependencies = [
     "requests",
     "appdirs",
-    "pymcsc>=0.1.0",  # server management, imported as `mcsc`
+    "pymcsc==0.1.0",  # server management, imported as `mcsc` (pinned: bump deliberately after testing)
     "PySide6-Essentials>=6.8",
     "qtawesome",
 ]

@@ -35,7 +35,7 @@ from mcsc_gui.core.os_utils import hide_child_consoles  # noqa: E402
 from mcsc_gui.core.shortcuts import set_windows_app_id  # noqa: E402
 from mcsc_gui.core.shutdown import emergency_stop  # noqa: E402
 from mcsc_gui.core.translations import translate as _  # noqa: E402
-from mcsc_gui.core.user_settings import UserSettings  # noqa: E402
+from mcsc_gui.core.user_settings import DEFAULT_NATIVE_TITLE_BAR, UserSettings  # noqa: E402
 from mcsc_gui.telemetry import get_telemetry_client  # noqa: E402
 from mcsc_gui.ui import tasks  # noqa: E402
 from mcsc_gui.ui.invoke import install_invoker, invoke_in_ui  # noqa: E402
@@ -129,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     events = ServerEvents()
     events.attach_all(sm.get_servers())
 
-    native = bool(UserSettings().user_settings.get("native_title_bar", False))
+    native = bool(UserSettings().user_settings.get("native_title_bar", DEFAULT_NATIVE_TITLE_BAR))
     window = MainWindow(events, bridge, native_title_bar=native)
     tasks.configure(bridge, window.toasts)
     set_notifier(tasks.ToastNotifier(window.toasts))
