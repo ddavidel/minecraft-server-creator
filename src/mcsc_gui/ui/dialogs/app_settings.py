@@ -10,7 +10,7 @@ from mcsc_gui.config import settings as mcssettings
 from mcsc_gui.core import shortcuts
 from mcsc_gui.core.translations import languages_map
 from mcsc_gui.core.translations import translate as _
-from mcsc_gui.core.user_settings import UserSettings
+from mcsc_gui.core.user_settings import DEFAULT_NATIVE_TITLE_BAR, UserSettings
 from mcsc_gui.telemetry import send_event_async
 from mcsc_gui.ui.dialogs.fields import Field
 from mcsc_gui.ui.dialogs.shortcut import create_shortcuts, menu_name
@@ -37,7 +37,8 @@ class AppSettingsDialog(OverlayDialog):
         about.addWidget(logo)
         texts = QVBoxLayout()
         texts.setSpacing(2)
-        texts.addWidget(label("Minecraft Server Creator", "title"))
+        # Wrap so the name is never clipped next to the (wide) logo
+        texts.addWidget(label("Minecraft Server Creator", "title", wrap=True))
         texts.addWidget(label(_("Version: {version}", version=get_current_version()), "muted"))
         about.addLayout(texts, 1)
         self.body.addLayout(about)
@@ -50,7 +51,7 @@ class AppSettingsDialog(OverlayDialog):
         self.body.addWidget(Field(_("Language"), self.language))
 
         self.native_title_bar = QCheckBox(_("Use the system title bar"))
-        self.native_title_bar.setChecked(bool(current.get("native_title_bar", False)))
+        self.native_title_bar.setChecked(bool(current.get("native_title_bar", DEFAULT_NATIVE_TITLE_BAR)))
         self.body.addWidget(self.native_title_bar)
 
         self.shortcut_button = None
