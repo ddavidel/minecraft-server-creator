@@ -32,14 +32,29 @@ from mcsc_gui.ui.dialogs.app_settings import AppSettingsDialog
 from mcsc_gui.ui.dialogs.confirm_quit import ConfirmQuitDialog, ShutdownDialog
 from mcsc_gui.ui.dialogs.create_server import CreateServerDialog
 from mcsc_gui.ui.dialogs.delete_server import DeleteServerDialog
-from mcsc_gui.ui.dialogs.edit_server import EditServerDialog
 from mcsc_gui.ui.dialogs.import_server import ImportServerDialog
 from mcsc_gui.ui.dialogs.shortcut import ShortcutPromptDialog, mark_prompt_shown, should_prompt
 from mcsc_gui.ui.dialogs.update_app import UpdateAppDialog, safe_check_for_updates
-from mcsc_gui.ui.navigator import DASHBOARD, EDITOR, SERVER, Navigator, Route
+from mcsc_gui.ui.navigator import (
+    BACKUPS,
+    CONFIGURATION,
+    CONSOLE,
+    DASHBOARD,
+    EDITOR,
+    SERVER,
+    SERVER_SETTINGS,
+    Navigator,
+    Route,
+    section_of,
+)
 from mcsc_gui.ui.pages.config_editor import ConfigEditorPage
 from mcsc_gui.ui.pages.dashboard import DashboardPage
-from mcsc_gui.ui.pages.server_detail import ServerDetailPage
+from mcsc_gui.ui.pages.server_backups import ServerBackupsPage
+from mcsc_gui.ui.pages.server_base import ServerPage
+from mcsc_gui.ui.pages.server_configuration import ServerConfigurationPage
+from mcsc_gui.ui.pages.server_console import ServerConsolePage
+from mcsc_gui.ui.pages.server_overview import ServerOverviewPage
+from mcsc_gui.ui.pages.server_settings import ServerSettingsPage
 from mcsc_gui.ui.server_events import ServerEvents
 from mcsc_gui.ui.tasks import run_blocking, run_task
 from mcsc_gui.ui.theme.tokens import TOKENS
@@ -52,6 +67,13 @@ from mcsc_gui.utils import get_static_path
 logger = logging.getLogger(__name__)
 
 APP_TITLE = "Minecraft Server Creator"
+SERVER_PAGES: dict[str, type[ServerPage]] = {
+    SERVER: ServerOverviewPage,
+    CONSOLE: ServerConsolePage,
+    CONFIGURATION: ServerConfigurationPage,
+    BACKUPS: ServerBackupsPage,
+    SERVER_SETTINGS: ServerSettingsPage,
+}
 DEFAULT_SIZE = (1300, 800)
 MINIMUM_SIZE = (1000, 640)
 TELEMETRY_CLOSE_TIMEOUT = 6  # seconds
@@ -122,6 +144,9 @@ class MainWindow(QMainWindow):
         self.dashboard.new_server_requested.connect(self.open_create_dialog)
         self.dashboard.import_server_requested.connect(self.open_import_dialog)
         self.sidebar.dashboard_clicked.connect(self.navigator.to_dashboard)
+        self.sidebar.section_clicked.connect(self.navigator.to_section)
+        for signal in (events.state_changed, events.server_updated, events.busy_changed):
+            signal.connect(lambda server_id, *_args: self.sidebar.refresh_server(server_id))
         self.sidebar.new_server_clicked.connect(self.open_create_dialog)
         self.sidebar.updates_clicked.connect(self.on_updates_clicked)
         self.sidebar.settings_clicked.connect(self.open_settings_dialog)
@@ -145,13 +170,13 @@ class MainWindow(QMainWindow):
         if server is None:
             self.toasts.error(_("Invalid server"))
             return None
-        if route.kind == SERVER:
-            page = ServerDetailPage(server, self.events)
+        page_class = SERVER_PAGES.get(route.kind)
+        if page_class is not None:
+            page = page_class(server, self.events)
             page.edit_file_requested.connect(self.navigator.to_editor)
-            page.edit_requested.connect(lambda _id, s=server: self.open_dialog(
-                EditServerDialog(self, s)))
+            page.section_requested.connect(self.navigator.to_section)
             page.delete_requested.connect(lambda _id, s=server: self.open_delete_dialog(s))
-            page.title_changed.connect(self.title_bar.set_title)
+            page.title_changed.connect(self._set_title)
             return page
         if route.kind == EDITOR:
             filename = route.args[1]
@@ -159,21 +184,31 @@ class MainWindow(QMainWindow):
                 self.toasts.error(_("Invalid server"))
                 return None
             page = ConfigEditorPage(server, filename)
-            page.title_changed.connect(self.title_bar.set_title)
+            page.title_changed.connect(self._set_title)
             return page
         return None
 
+    def _set_title(self, title: str) -> None:
+        self.title_bar.set_title(title)
+        dashboard = self.navigator.current_route.kind == DASHBOARD
+        self.setWindowTitle(APP_TITLE if dashboard else f"{title} — {APP_TITLE}")
+
     def _on_page_changed(self, kind: str) -> None:
         page = self.navigator.current_page
-        title = page.page_title() if hasattr(page, "page_title") else _("Dashboard")
-        self.title_bar.set_title(title)
+        self._set_title(page.page_title() if hasattr(page, "page_title") else _("Dashboard"))
         self.title_bar.set_back_visible(self.navigator.can_go_back)
-        self.sidebar.set_active("dashboard" if kind == DASHBOARD else None)
-        self.setWindowTitle(f"{title} — {APP_TITLE}" if kind != DASHBOARD else APP_TITLE)
+        route = self.navigator.current_route
+        section = section_of(route)
+        server = sm.find_server(route.args[0]) if section and route.args else None
+        if server is not None:
+            self.sidebar.show_server(server, section)
+        else:
+            self.sidebar.show_app_menu()
+            self.sidebar.set_active("dashboard" if kind == DASHBOARD else None)
 
     def _on_server_removed(self, server_id: str) -> None:
         route = self.navigator.current_route
-        if route.kind in (SERVER, EDITOR) and route.args and route.args[0] == server_id:
+        if section_of(route) and route.args and route.args[0] == server_id:
             self.navigator.to_dashboard()
 
     # ----------------------------------------------------------- dialogs

@@ -10,7 +10,6 @@ from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core.server_prefs import ServerPrefs
 from mcsc_gui.ui.dialogs.create_server import CreateServerDialog
 from mcsc_gui.ui.dialogs.delete_server import DeleteServerDialog
-from mcsc_gui.ui.dialogs.edit_server import EditServerDialog
 from mcsc_gui.ui.widgets.overlay_dialog import MessageDialog
 
 VERSIONS = {0: ["1.21.4", "1.20.1"], 1: ["1.21.4-232", "1.20.4-499"], 2: []}
@@ -153,28 +152,6 @@ def test_delete_stopped_server(qtbot, host, bridge, registry, make_server):
         dialog.submit()
     assert registry.find("srv") is None
     assert not server.path.exists()
-
-
-def test_edit_slider_keeps_ram_above_system_total(qtbot, host, make_server):
-    server = make_server()
-    server.config.ram_gb = 4096
-    dialog = EditServerDialog(host, server)
-    dialog.open()
-    assert dialog.ram.maximum() == 4096
-    assert dialog.ram.value() == 4096
-    assert not dialog.eula.isEnabled()
-
-
-def test_edit_saves_name_and_ram(qtbot, host, bridge, registry, make_server):
-    server = registry.register(make_server().config)
-    dialog = EditServerDialog(host, server)
-    dialog.open()
-    dialog.name.widget.setText("Renamed")
-    dialog.ram.setValue(1)
-    with qtbot.waitSignal(dialog.accepted, timeout=2000):
-        dialog.submit()
-    assert server.config.name == "Renamed"
-    assert server.config.ram_gb == 1
 
 
 def test_overlay_escape_and_focus_trap(qtbot, host):

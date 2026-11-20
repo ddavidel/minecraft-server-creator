@@ -4,20 +4,15 @@ from unittest import mock
 
 import pytest
 
-from mcsc import ArchiveInfo, Backup, BackupKind, BackupManifest, DetectedServer, ServerState, \
-    ServerType
+from mcsc import ArchiveInfo, Backup, BackupKind, BackupManifest, DetectedServer, ServerType
 
 from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core.server_prefs import ServerPrefs
 from mcsc_gui.ui.dialogs.app_settings import AppSettingsDialog
 from mcsc_gui.ui.dialogs.confirm_quit import ConfirmQuitDialog, ShutdownDialog
 from mcsc_gui.ui.dialogs.delete_server import DeleteServerDialog
-from mcsc_gui.ui.dialogs.edit_server import EditServerDialog
 from mcsc_gui.ui.dialogs.import_server import ImportServerDialog
 from mcsc_gui.ui.dialogs.restore_backup import RestoreBackupDialog
-from mcsc_gui.ui.pages.server_detail import ServerDetailPage
-from mcsc_gui.ui.server_events import ServerEvents
-from mcsc_gui.ui.usage import UsageHistory
 from mcsc_gui.ui.widgets.backup_list import format_size
 
 
@@ -33,97 +28,10 @@ def prefs(tmp_path):
         yield p
 
 
-@pytest.fixture
-def detail(qtbot, make_server, prefs):
-    server = make_server()
-    backups = [make_backup(server), make_backup(server, BackupKind.AUTOMATIC, name="20261119")]
-    events = ServerEvents(track_registry=False)
-    events.attach(server)
-    exported = []
-    page = ServerDetailPage(server, events, history=UsageHistory(), backups=lambda _s: backups,
-                            choose_export_path=lambda _p, _s: exported.append(1) or "out.zip")
-    qtbot.addWidget(page)
-    yield page, server, backups, events
-    page.dispose()
-    events.close()
-
-
 def test_format_size():
     assert format_size(512) == "512 B"
     assert format_size(5 * 1024 * 1024) == "5.0 MB"
     assert format_size(3 * 1024 ** 3) == "3.0 GB"
-
-
-def test_backup_list_shows_backups_and_reloads(detail):
-    page, server, backups, events = detail
-    rows = page.backup_list.rows
-    assert [r.backup for r in rows] == backups
-    assert rows[0].title_label.text().startswith("2026-11-")
-    assert rows[0].details_label.text() == "Manual · 1.21.4"
-    assert rows[0].size_label.text() == "5.0 MB"
-    assert "Paper 1.21.4" in rows[0].toolTip()
-    assert not page.backup_list.empty_label.isVisible()
-
-    backups.clear()
-    events.backups_changed.emit("other")  # another server: ignored
-    assert len(page.backup_list.rows) == 2
-    events.backups_changed.emit(server.id)
-    assert page.backup_list.rows == []
-    assert page.backup_list.empty_label.isVisibleTo(page.backup_list)
-
-
-def test_running_server_disables_backup_restore_and_export(qtbot, detail):
-    page, server, _backups, events = detail
-    assert page.backup_list.backup_button.isEnabled()
-    assert page.export_button.isEnabled()
-    with qtbot.waitSignal(events.state_changed, timeout=1000):
-        server._set_state(ServerState.RUNNING)  # pylint: disable=protected-access
-    row = page.backup_list.rows[0]
-    assert not page.backup_list.backup_button.isEnabled()
-    assert not row.restore_button.isEnabled()
-    assert "Stop the server" in row.restore_button.toolTip()
-    assert row.delete_button.isEnabled()  # deleting an archive is fine while running
-    assert not page.export_button.isEnabled()
-
-
-def test_busy_server_shows_activity_and_blocks_actions(detail):
-    page, server, _backups, events = detail
-    sm._operations[server.id] = "backup"  # pylint: disable=protected-access
-    try:
-        events.busy_changed.emit(server.id)
-        assert page.badge.text == "Backing up…"
-        assert page.badge.pulsing
-        assert not page.start_button.isEnabled()
-        assert not page.delete_button.isEnabled()
-        assert not page.backup_list.rows[0].delete_button.isEnabled()
-    finally:
-        sm._operations.clear()  # pylint: disable=protected-access
-    events.busy_changed.emit(server.id)
-    assert page.badge.text == "Stopped"
-    assert page.start_button.isEnabled()
-
-
-def test_back_up_now_and_export_call_the_core(qtbot, bridge, detail):
-    page, server, _backups, _events = detail
-    with mock.patch.object(sm, "backup_server", new=mock.AsyncMock()) as backup, \
-            mock.patch.object(sm, "export_server", new=mock.AsyncMock()) as export:
-        page.backup_list.backup_button.click()
-        qtbot.waitUntil(lambda: backup.await_count == 1, timeout=2000)
-        page.export_button.click()
-        qtbot.waitUntil(lambda: export.await_count == 1, timeout=2000)
-    assert backup.call_args.args == (server,)
-    assert export.call_args.args == (server, "out.zip")
-
-
-def test_restore_asks_confirmation(qtbot, bridge, detail):
-    page, server, backups, _events = detail
-    with mock.patch.object(sm, "restore_backup", new=mock.AsyncMock()) as restore:
-        page.confirm_restore(backups[0])
-        dialog = page.window().findChild(RestoreBackupDialog)
-        assert dialog is not None
-        dialog.confirm_button.click()
-        qtbot.waitUntil(lambda: restore.await_count == 1, timeout=2000)
-    assert restore.call_args.args == (server, backups[0])
 
 
 def test_restore_dialog_warns_about_version_change(host, make_server):
@@ -208,18 +116,6 @@ def test_import_folder_not_a_server(qtbot, host, bridge):
 
 
 # ----------------------------------------------------------------- settings
-
-
-def test_edit_dialog_saves_backup_policy(qtbot, host, bridge, make_server, prefs):
-    server = make_server()
-    dialog = EditServerDialog(host, server)
-    dialog.open()
-    assert dialog.auto_backup.currentData() == "default"
-    dialog.auto_backup.setCurrentIndex(dialog.auto_backup.findData("on_stop"))
-    with mock.patch.object(sm.manager, "save"), \
-            qtbot.waitSignal(dialog.accepted, timeout=2000):
-        dialog.submit()
-    assert sm.server_backup_policy(server) == "on_stop"
 
 
 def test_app_settings_include_backup_settings(qtbot, host):
