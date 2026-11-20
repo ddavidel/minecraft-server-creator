@@ -36,7 +36,7 @@ class EmptyState(QWidget):
         if text:
             body = label(text, "muted", wrap=True)
             body.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            body.setMaximumWidth(420)
+            body.setFixedWidth(420)  # a wrapped label needs a width to compute its height
             layout.addWidget(body, 0, Qt.AlignmentFlag.AlignHCenter)
         if action is not None:
             layout.addSpacing(TOKENS.spacing.sm)

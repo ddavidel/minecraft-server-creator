@@ -1,21 +1,21 @@
-"""Backups of a server: "Back up now", "Open backups folder" and one row per backup."""
+"""Backups of a server: the full table (backups page) and the latest ones (overview)."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
-from mcsc import Backup
+from mcsc import Backup, BackupKind
 
 from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.ui.theme.tokens import TOKENS
 from mcsc_gui.ui.widgets.card import Card
-from mcsc_gui.ui.widgets.common import button, icon_button, label
+from mcsc_gui.ui.widgets.common import button, icon_button, label, separator
+from mcsc_gui.ui.widgets.empty_state import EmptyState
 
-LIST_MAX_HEIGHT = 220
+# Column widths of the table (the date column takes the rest)
+COLUMN_WIDTHS = {"kind": 170, "version": 170, "size": 110, "actions": 170}
 
 
 def format_size(size: int) -> str:
@@ -33,6 +33,32 @@ def format_date(backup: Backup) -> str:
     return backup.created_at.astimezone().strftime("%Y-%m-%d %H:%M")
 
 
+def kind_color(kind: BackupKind) -> str:
+    p = TOKENS.palette
+    return {
+        BackupKind.MANUAL: p.accent,
+        BackupKind.BEFORE_RESTORE: p.warning_text,
+        BackupKind.BEFORE_UPGRADE: p.warning_text,
+        BackupKind.EXPORT: p.info,
+    }.get(BackupKind(kind), p.text)
+
+
+def kind_tag(kind: BackupKind) -> QLabel:
+    """Square tag with the translated backup kind."""
+    color = kind_color(kind)
+    tag = label(sm.backup_kind_label(kind), "overline")
+    tag.setStyleSheet(
+        f"color: {color}; border: {TOKENS.borders.width}px solid {color}; padding: 1px 8px;"
+    )
+    tag.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+    return tag
+
+
+def _cell(widget: QWidget, key: str) -> QWidget:
+    widget.setFixedWidth(COLUMN_WIDTHS[key])
+    return widget
+
+
 class BackupRow(QWidget):
     restore_requested = Signal(object)  # Backup
     delete_requested = Signal(object)  # Backup
@@ -41,103 +67,99 @@ class BackupRow(QWidget):
         super().__init__(parent)
         self.backup = backup
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(TOKENS.spacing.xs)
+        layout.setContentsMargins(TOKENS.spacing.md, TOKENS.spacing.xs, TOKENS.spacing.md,
+                                  TOKENS.spacing.xs)
+        layout.setSpacing(TOKENS.spacing.md)
 
-        texts = QVBoxLayout()
-        texts.setSpacing(0)
-        top = QHBoxLayout()
-        top.setSpacing(TOKENS.spacing.xs)
-        self.title_label = label(format_date(backup))
-        self.size_label = label(format_size(backup.size_bytes), "mono")
-        self.size_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.details_label = label(
-            f"{sm.backup_kind_label(backup.kind)} · {backup.version}", "mono")
-        for text in (self.title_label, self.details_label):
-            # Long texts are clipped instead of pushing the buttons out of the row
-            text.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        top.addWidget(self.title_label, 1)
-        top.addWidget(self.size_label)
-        texts.addLayout(top)
-        texts.addWidget(self.details_label)
-        layout.addLayout(texts, 1)
+        self.date_label = label(format_date(backup))
+        self.date_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        layout.addWidget(self.date_label, 1)
+        kind = QWidget()
+        kind_layout = QHBoxLayout(kind)
+        kind_layout.setContentsMargins(0, 0, 0, 0)
+        self.kind_label = kind_tag(backup.kind)
+        kind_layout.addWidget(self.kind_label)
+        kind_layout.addStretch(1)
+        layout.addWidget(_cell(kind, "kind"))
+        self.version_label = _cell(label(f"{backup.server_type.label} {backup.version}", "mono"),
+                                   "version")
+        layout.addWidget(self.version_label)
+        self.size_label = _cell(label(format_size(backup.size_bytes), "mono"), "size")
+        layout.addWidget(self.size_label)
 
-        self.restore_button = icon_button("backup-restore", _("Restore"))
+        actions = QWidget()
+        actions_layout = QHBoxLayout(actions)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(TOKENS.spacing.xs)
+        actions_layout.addStretch(1)
+        self.restore_button = button(_("Restore"), "backup-restore")
         self.restore_button.clicked.connect(lambda: self.restore_requested.emit(self.backup))
-        layout.addWidget(self.restore_button)
+        actions_layout.addWidget(self.restore_button)
         self.delete_button = icon_button("delete", _("Delete backup"),
                                          color=TOKENS.palette.danger)
         self.delete_button.clicked.connect(lambda: self.delete_requested.emit(self.backup))
-        layout.addWidget(self.delete_button)
-        self.setToolTip(f"{sm.backup_kind_label(backup.kind)} · {backup.server_type.label} "
-                        f"{backup.version} · {format_size(backup.size_bytes)}\n{backup.path.name}")
+        actions_layout.addWidget(self.delete_button)
+        layout.addWidget(_cell(actions, "actions"))
+        self.setToolTip(backup.path.name)
 
 
-class BackupList(QWidget):
-    """Lists what is on disk; call :meth:`reload` when the backups change."""
+class BackupTable(Card):
+    """Every backup on disk, newest first, with Restore and Delete."""
 
-    backup_requested = Signal()
-    open_folder_requested = Signal()
     restore_requested = Signal(object)  # Backup
     delete_requested = Signal(object)  # Backup
 
-    def __init__(self, load: Callable[[], list[Backup]], parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._load = load
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent, padding=0)
+        self.layout_.setSpacing(0)
+        self.rows: list[BackupRow] = []
         self._enabled = True
         self._delete_enabled = True
-        self._restore_tooltip: str | None = None
-        self.rows: list[BackupRow] = []
-        s = TOKENS.spacing
+        self._reason: str | None = None
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(s.sm)
-
-        header = QHBoxLayout()
-        header.setSpacing(s.xs)
-        header.addWidget(label(_("BACKUPS"), "overline"), 1)
-        self.folder_button = icon_button("folder", _("Open backups folder"))
-        self.folder_button.clicked.connect(self.open_folder_requested)
-        header.addWidget(self.folder_button)
-        root.addLayout(header)
-
-        card = Card(padding=s.sm)
-        card.layout_.setSpacing(s.sm)
-        self.backup_button = button(_("Back up now"), "archive-arrow-down-outline",
-                                    variant="primary")
-        self.backup_button.clicked.connect(self.backup_requested)
-        card.layout_.addWidget(self.backup_button)
-
-        self.empty_label = label(_("No backups yet"), "muted")
-        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        card.layout_.addWidget(self.empty_label)
+        # Column titles: hidden with the rows when there are no backups
+        self.header = QWidget()
+        self.header.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        header_layout = QVBoxLayout(self.header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(0)
+        head = QHBoxLayout()
+        head.setContentsMargins(TOKENS.spacing.md, TOKENS.spacing.md, TOKENS.spacing.md,
+                                TOKENS.spacing.sm)
+        head.setSpacing(TOKENS.spacing.md)
+        date = label(_("DATE"), "overline")
+        date.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        head.addWidget(date, 1)
+        for key, text in (("kind", _("TYPE")), ("version", _("VERSION")), ("size", _("SIZE")),
+                          ("actions", "")):
+            head.addWidget(_cell(label(text, "overline"), key))
+        header_layout.addLayout(head)
+        header_layout.addWidget(separator())
+        self.layout_.addWidget(self.header)
 
         self._rows_widget = QWidget()
         self._rows_layout = QVBoxLayout(self._rows_widget)
-        self._rows_layout.setContentsMargins(0, 0, 0, 0)
-        self._rows_layout.setSpacing(s.sm)
+        self._rows_layout.setContentsMargins(0, TOKENS.spacing.xs, 0, TOKENS.spacing.xs)
+        self._rows_layout.setSpacing(TOKENS.spacing.xs)
         self._rows_layout.addStretch(1)
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll.setWidget(self._rows_widget)
-        self.scroll.setMaximumHeight(LIST_MAX_HEIGHT)
-        card.layout_.addWidget(self.scroll)
-        root.addWidget(card)
+        self.layout_.addWidget(self.scroll, 1)
 
-        self.reload()
+        self.empty_state = EmptyState(
+            "archive-outline", _("No backups yet"),
+            _("A backup saves the whole server: world, settings and plugins. "
+              "Use \"Back up now\", or turn on automatic backups."),
+        )
+        self.layout_.addWidget(self.empty_state, 1)
 
     @property
     def backups(self) -> list[Backup]:
         return [row.backup for row in self.rows]
 
-    def reload(self) -> None:
-        """Re-read the backups from disk."""
-        try:
-            backups = self._load()
-        except OSError:
-            backups = []
+    def set_backups(self, backups: list[Backup]) -> None:
         for row in self.rows:
             self._rows_layout.removeWidget(row)
             row.deleteLater()
@@ -148,27 +170,56 @@ class BackupList(QWidget):
             row.delete_requested.connect(self.delete_requested)
             self._rows_layout.insertWidget(index, row)
             self.rows.append(row)
-        self.empty_label.setVisible(not self.rows)
+        self.empty_state.setVisible(not self.rows)
+        self.header.setVisible(bool(self.rows))
         self.scroll.setVisible(bool(self.rows))
-        # Height of the rows, capped: the list scrolls beyond LIST_MAX_HEIGHT
-        self.scroll.setMinimumHeight(min(LIST_MAX_HEIGHT, self._rows_widget.sizeHint().height()))
         self._apply_enabled()
 
     def set_actions_enabled(self, enabled: bool, reason: str | None = None, *,
                             delete_enabled: bool | None = None) -> None:
-        """Enable "Back up now" and restore (``reason`` is their tooltip when disabled)
-        and the delete buttons (``delete_enabled``, default ``enabled``)."""
+        """Enable Restore (``reason`` is its tooltip when disabled) and Delete."""
         self._enabled = enabled
         self._delete_enabled = enabled if delete_enabled is None else delete_enabled
-        self._restore_tooltip = reason
+        self._reason = reason
         self._apply_enabled()
 
     def _apply_enabled(self) -> None:
-        enabled = self._enabled
-        reason = None if enabled else self._restore_tooltip
-        self.backup_button.setEnabled(enabled)
-        self.backup_button.setToolTip(reason or "")
+        tooltip = self._reason if not self._enabled and self._reason else _("Restore")
         for row in self.rows:
-            row.restore_button.setEnabled(enabled)
-            row.restore_button.setToolTip(reason or _("Restore"))
+            row.restore_button.setEnabled(self._enabled)
+            row.restore_button.setToolTip(tooltip)
             row.delete_button.setEnabled(self._delete_enabled)
+
+
+class RecentBackups(QWidget):
+    """The latest backups as compact lines (overview)."""
+
+    def __init__(self, limit: int = 3, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.limit = limit
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(TOKENS.spacing.xs)
+        self.lines: list[QWidget] = []
+        self.empty_label = label(_("No backups yet"), "muted")
+        self._layout.addWidget(self.empty_label)
+
+    def set_backups(self, backups: list[Backup]) -> None:
+        for line in self.lines:
+            self._layout.removeWidget(line)
+            line.deleteLater()
+        self.lines = []
+        for backup in backups[:self.limit]:
+            line = QWidget()
+            row = QHBoxLayout(line)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(TOKENS.spacing.sm)
+            date = label(format_date(backup))
+            date.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+            row.addWidget(date, 1)
+            row.addWidget(label(f"{sm.backup_kind_label(backup.kind)} · "
+                                f"{format_size(backup.size_bytes)}", "mono"))
+            line.setToolTip(f"{backup.server_type.label} {backup.version}")
+            self._layout.addWidget(line)
+            self.lines.append(line)
+        self.empty_label.setVisible(not self.lines)

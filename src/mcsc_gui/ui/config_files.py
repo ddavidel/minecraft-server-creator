@@ -18,6 +18,21 @@ CONFIG_FILE_LABELS = {
 }
 
 
+# Names of the well known config files (configuration page)
+CONFIG_FILE_TITLES = {
+    "server.properties": "Server properties",
+    "spigot.yml": "Spigot",
+    "paper.yml": "Paper",
+    "config/paper-global.yml": "Paper",
+    "bukkit.yml": "Bukkit",
+    "config/paper-world-defaults.yml": "Paper world defaults",
+}
+
+
+def config_file_title(filename: str) -> str:
+    return _(CONFIG_FILE_TITLES[filename]) if filename in CONFIG_FILE_TITLES else filename
+
+
 def config_file_label(filename: str) -> str:
     return _(CONFIG_FILE_LABELS.get(filename, "Edit {file}"), file=filename)
 

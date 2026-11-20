@@ -64,6 +64,7 @@ from mcsc import (
 
 from mcsc_gui.config import settings as mcssettings
 from mcsc_gui.core.notifier import get_notifier, notify_warning
+from mcsc_gui.core.os_utils import local_ip_address
 from mcsc_gui.core.server_prefs import ServerPrefs
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.core.user_settings import (
@@ -722,3 +723,11 @@ async def import_server_folder(folder: str | os.PathLike[str], server_type: int 
     _fire(_added_callbacks, server)
     await _send_event("server_import", {**telemetry_details(server), "source": "folder"})
     return server
+
+
+def connection_address(server: MinecraftServer) -> str:
+    """Address players on the local network use to join (``ip:port``)."""
+    host = server.config.address
+    if not host or host in ("0.0.0.0", "::"):
+        host = local_ip_address() or "localhost"
+    return f"{host}:{server.config.port}"
