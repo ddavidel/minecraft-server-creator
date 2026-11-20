@@ -166,7 +166,7 @@ class MainWindow(QMainWindow):
         self.title_bar.set_title(title)
         self.title_bar.set_back_visible(self.navigator.can_go_back)
         self.sidebar.set_active("dashboard" if kind == DASHBOARD else None)
-        self.setWindowTitle(f"{title} â€” {APP_TITLE}" if kind != DASHBOARD else APP_TITLE)
+        self.setWindowTitle(f"{title} — {APP_TITLE}" if kind != DASHBOARD else APP_TITLE)
 
     def _on_server_removed(self, server_id: str) -> None:
         route = self.navigator.current_route
