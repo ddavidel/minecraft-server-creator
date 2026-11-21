@@ -365,4 +365,12 @@ QMenu {{
 }}
 QMenu::item {{ padding: 6px 16px; border-radius: 0; }}
 QMenu::item:selected {{ background: {p.accent}; color: {p.text_on_accent}; }}
+QMenu::item:disabled {{ color: {p.text_disabled}; }}
+QMenu::separator {{ height: {bw}px; background: {p.border_strong}; margin: 2px 0; }}
+QWidget#DangerMenuItem {{ background: transparent; }}
+QWidget#DangerMenuItem[active="true"] {{ background: {p.danger}; }}
+QLabel#DangerMenuItemText {{ color: {p.danger_text}; background: transparent; }}
+QLabel#DangerMenuItemText:disabled {{ color: {p.text_disabled}; }}
+QWidget#DangerMenuItem[active="true"] QLabel#DangerMenuItemText {{ color: #ffffff; }}
+QLabel#DangerMenuItemIcon {{ background: transparent; }}
 """

@@ -89,6 +89,10 @@ class DashboardPage(QWidget):
     open_server = Signal(str)
     new_server_requested = Signal()
     import_server_requested = Signal()
+    # Context menu of a card (server_id)
+    edit_server = Signal(str)
+    clone_server = Signal(str)
+    delete_server = Signal(str)
 
     def __init__(self, events: ServerEvents,
                  servers: Callable[[], list[MinecraftServer]] = sm.get_servers,
@@ -174,6 +178,9 @@ class DashboardPage(QWidget):
         card.open_requested.connect(self.open_server)
         card.start_requested.connect(self._start)
         card.stop_requested.connect(self._stop)
+        card.edit_requested.connect(self.edit_server)
+        card.clone_requested.connect(self.clone_server)
+        card.delete_requested.connect(self.delete_server)
         self._cards[server.id] = card
         self.grid.add(card)
 

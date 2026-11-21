@@ -50,6 +50,7 @@ ICON_MAP: dict[str, str] = {
     "splitscreen": "server-network",
     "restart": "restart",
     "edit": "pencil-outline",
+    "content_copy": "content-copy",
     "shortcut": "monitor-arrow-down",
 }
 

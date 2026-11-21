@@ -1,9 +1,10 @@
-"""Dashboard card of a server: name, type/version, state and Start/Stop."""
+"""Dashboard card of a server: name, type/version, state, Start/Stop and a context menu."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QWidget
+from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtGui import QContextMenuEvent, QKeyEvent
+from PySide6.QtWidgets import QHBoxLayout, QMenu, QWidget
 
 from mcsc import MinecraftServer
 
@@ -12,6 +13,7 @@ from mcsc_gui.core.translations import translate as _
 from mcsc_gui.ui.theme.tokens import TOKENS
 from mcsc_gui.ui.widgets.card import Card
 from mcsc_gui.ui.widgets.common import button, label
+from mcsc_gui.ui.widgets.context_menu import ContextMenu
 from mcsc_gui.ui.widgets.status_badge import StatusBadge
 
 
@@ -19,12 +21,16 @@ class ServerCard(Card):
     open_requested = Signal(str)  # server_id
     start_requested = Signal(str)
     stop_requested = Signal(str)
+    edit_requested = Signal(str)
+    clone_requested = Signal(str)
+    delete_requested = Signal(str)
 
     MIN_WIDTH = 300
 
     def __init__(self, server: MinecraftServer, parent: QWidget | None = None) -> None:
         super().__init__(parent, clickable=True)
         self.server = server
+        self._menu: QMenu | None = None
         self.setMinimumWidth(self.MIN_WIDTH)
         self.clicked.connect(lambda: self.open_requested.emit(self.server.id))
 
@@ -67,3 +73,63 @@ class ServerCard(Card):
         self.start_button.setEnabled(sm.can_start(self.server))
         self.stop_button.setEnabled(sm.can_stop(self.server))
         self.setAccessibleName(f"{config.name}, {self.badge.text}")
+
+    # ---------------------------------------------------------- context menu
+
+    def build_menu(self) -> ContextMenu:
+        """Edit / Clone / Delete menu, enabled from the server's current state."""
+        menu = ContextMenu(self)
+        menu.setToolTipsVisible(True)
+        server_id = self.server.id
+        edit = menu.add_action(_("Edit"), "edit")
+        edit.triggered.connect(lambda: self.edit_requested.emit(server_id))
+        clone = menu.add_action(_("Clone"), "content_copy")
+        clone.triggered.connect(lambda: self.clone_requested.emit(server_id))
+        menu.addSeparator()
+        delete = menu.add_danger_action(_("Delete"), "delete")
+        delete.triggered.connect(lambda: self.delete_requested.emit(server_id))
+        for action, reason in ((clone, sm.clone_block_reason(self.server)),
+                               (delete, sm.delete_block_reason(self.server))):
+            action.setEnabled(reason is None)
+            action.setToolTip(reason or "")
+        return menu
+
+    @property
+    def menu(self) -> QMenu | None:
+        """The open context menu, ``None`` if it's closed."""
+        return self._menu
+
+    def show_menu(self, global_pos: QPoint | None = None) -> QMenu:
+        """Open the context menu at ``global_pos`` (below the card's title by default)."""
+        if self._menu is not None:  # e.g. Shift+F10 also arrives as a context menu event
+            return self._menu
+        menu = self.build_menu()
+        self._menu = menu
+
+        def closed() -> None:
+            self._menu = None
+            menu.deleteLater()  # after ``triggered``: deleteLater runs in the event loop
+
+        menu.aboutToHide.connect(closed)
+        if global_pos is None:
+            anchor = QPoint(TOKENS.spacing.lg, self.name_label.geometry().bottom())
+            global_pos = self.mapToGlobal(anchor)
+        menu.popup(global_pos)
+        return menu
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:  # noqa: N802 - Qt API
+        # Mouse: at the cursor. Keyboard (Menu key, Shift+F10): anchored to the card.
+        if event.reason() == QContextMenuEvent.Reason.Mouse:
+            self.show_menu(event.globalPos())
+        else:
+            self.show_menu()
+        event.accept()
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802 - Qt API
+        shift_f10 = (event.key() == Qt.Key.Key_F10
+                     and event.modifiers() == Qt.KeyboardModifier.ShiftModifier)
+        if shift_f10 or event.key() == Qt.Key.Key_Menu:
+            self.show_menu()
+            event.accept()
+            return
+        super().keyPressEvent(event)
