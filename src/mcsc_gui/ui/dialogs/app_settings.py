@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -38,6 +38,9 @@ from mcsc_gui.utils import get_static_path
 
 
 class AppSettingsDialog(OverlayDialog):
+    # The user asked for the changelog: the dialog closes, the window opens it
+    changelog_requested = Signal()
+
     def __init__(self, parent: QWidget, user_settings: UserSettings | None = None) -> None:
         super().__init__(parent, _("App Settings"), width=480)
         self._settings = user_settings or UserSettings()
@@ -109,10 +112,22 @@ class AppSettingsDialog(OverlayDialog):
               "Please restart the app after changing them."), "warning", wrap=True)
         self.body.addWidget(self.restart_label)
 
+        # Left of the footer, away from Close/Save
+        self.changelog_button = button(_("Changelog"), "history", variant="ghost")
+        self.changelog_button.clicked.connect(self.show_changelog)
+        self.buttons.insertWidget(0, self.changelog_button)
+
         self.cancel_button = self.add_button(button(_("Close"), "close"))
         self.save_button = self.add_button(button(_("Save"), "save", variant="primary"))
         self.cancel_button.clicked.connect(self.reject)
         self.save_button.clicked.connect(self.submit)
+
+    def show_changelog(self) -> None:
+        """Close the settings (unsaved changes are discarded) and ask for the changelog."""
+        if self.busy:
+            return
+        self.reject()
+        self.changelog_requested.emit()
 
     def create_shortcut(self) -> None:
         create_shortcuts(settings=self._settings, disable=[self.shortcut_button])
@@ -135,4 +150,4 @@ class AppSettingsDialog(OverlayDialog):
 
         run_blocking(self._settings.update_settings, progress=_("Saving"),
                      success=_("Settings saved") + ". " + _("Restart the app to apply them."),
-                     disable=[self.save_button, self.cancel_button], on_success=saved, **values)
+                     disable=[self.save_button, self.cancel_button, self.changelog_button], on_success=saved, **values)
