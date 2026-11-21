@@ -104,11 +104,15 @@ class HistoryLineEdit(QLineEdit):
 
 
 class ConsoleView(QWidget):
-    """Log + input. Emits :attr:`command_submitted` with the stripped command."""
+    """Log + input. Emits :attr:`command_submitted` with the stripped command.
+
+    With ``read_only=True`` the input row is hidden: a log viewer.
+    """
 
     command_submitted = Signal(str)
 
-    def __init__(self, max_lines: int, parent: QWidget | None = None) -> None:
+    def __init__(self, max_lines: int, parent: QWidget | None = None, *,
+                 read_only: bool = False) -> None:
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -142,6 +146,9 @@ class ConsoleView(QWidget):
         self.send_button.clicked.connect(self.input.returnPressed)
         row.addWidget(self.send_button)
         layout.addLayout(row)
+        if read_only:
+            self.input.hide()
+            self.send_button.hide()
 
     # ---------------------------------------------------------------- output
 

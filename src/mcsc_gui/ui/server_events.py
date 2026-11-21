@@ -37,7 +37,9 @@ class ServerEvents(QObject):
     output_lines = Signal(str, list)  # server_id, [lines] (batch)
     server_added = Signal(str)  # server_id
     server_removed = Signal(str)  # server_id
-    server_updated = Signal(str)  # server_id (name / RAM changed)
+    server_updated = Signal(str)  # server_id (name / RAM / version changed)
+    busy_changed = Signal(str)  # server_id (backup, restore, export... started or ended)
+    backups_changed = Signal(str)  # server_id (backup created or deleted)
 
     def __init__(
         self,
@@ -61,6 +63,8 @@ class ServerEvents(QObject):
             sm.on_server_added(self._on_server_added)
             sm.on_server_removed(self._on_server_removed)
             sm.on_server_updated(self._on_server_updated)
+            sm.on_server_busy_changed(self._on_busy_changed)
+            sm.on_backups_changed(self._on_backups_changed)
 
     # ------------------------------------------------------------ listeners
 
@@ -119,6 +123,8 @@ class ServerEvents(QObject):
             sm.remove_callback(self._on_server_added)
             sm.remove_callback(self._on_server_removed)
             sm.remove_callback(self._on_server_updated)
+            sm.remove_callback(self._on_busy_changed)
+            sm.remove_callback(self._on_backups_changed)
 
     # --------------------------------------------------------------- output
 
@@ -145,3 +151,9 @@ class ServerEvents(QObject):
 
     def _on_server_updated(self, server: MinecraftServer) -> None:
         self.server_updated.emit(server.id)
+
+    def _on_busy_changed(self, server: MinecraftServer) -> None:
+        self.busy_changed.emit(server.id)
+
+    def _on_backups_changed(self, server: MinecraftServer) -> None:
+        self.backups_changed.emit(server.id)

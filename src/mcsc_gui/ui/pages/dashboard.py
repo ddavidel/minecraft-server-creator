@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QScrollArea,
+    QSizePolicy,
     QStackedLayout,
     QVBoxLayout,
     QWidget,
@@ -87,6 +88,11 @@ class DashboardPage(QWidget):
 
     open_server = Signal(str)
     new_server_requested = Signal()
+    import_server_requested = Signal()
+    # Context menu of a card (server_id)
+    edit_server = Signal(str)
+    clone_server = Signal(str)
+    delete_server = Signal(str)
 
     def __init__(self, events: ServerEvents,
                  servers: Callable[[], list[MinecraftServer]] = sm.get_servers,
@@ -106,13 +112,19 @@ class DashboardPage(QWidget):
         header = QHBoxLayout()
         titles = QVBoxLayout()
         titles.setSpacing(2)
-        titles.addWidget(label(_("Your servers"), "display"))
+        self.title_label = label(_("Your servers"), "display")
+        # The header must not force a minimum page width: the grid reflows instead
+        self.title_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        titles.addWidget(self.title_label)
         self.count_label = label("", "muted")
         titles.addWidget(self.count_label)
         header.addLayout(titles, 1)
         self.new_button = button(_("New server"), "add", variant="primary",
                                  tooltip=_("New server") + " (Ctrl+N)")
         self.new_button.clicked.connect(self.new_server_requested)
+        self.import_button = button(_("Import server"), "import")
+        self.import_button.clicked.connect(self.import_server_requested)
+        header.addWidget(self.import_button)
         header.addWidget(self.new_button)
         root.addLayout(header)
 
@@ -127,11 +139,19 @@ class DashboardPage(QWidget):
 
         create = button(_("Create Server"), "add", variant="primary")
         create.clicked.connect(self.new_server_requested)
+        import_existing = button(_("Import server"), "import")
+        import_existing.clicked.connect(self.import_server_requested)
+        empty_actions = QWidget()
+        empty_row = QHBoxLayout(empty_actions)
+        empty_row.setContentsMargins(0, 0, 0, 0)
+        empty_row.setSpacing(s.sm)
+        empty_row.addWidget(import_existing)
+        empty_row.addWidget(create)
         self.empty_state = EmptyState(
             "splitscreen",
             _("No servers yet"),
             _("Seems like you don't have any. Let's create one!"),
-            action=create,
+            action=empty_actions,
         )
         self._content.addWidget(self.empty_state)
 
@@ -143,6 +163,7 @@ class DashboardPage(QWidget):
         events.server_added.connect(self._on_server_added)
         events.server_removed.connect(self._on_server_removed)
         events.server_updated.connect(self._on_server_updated)
+        events.busy_changed.connect(self._on_server_updated)
 
     # ----------------------------------------------------------------- cards
 
@@ -157,6 +178,9 @@ class DashboardPage(QWidget):
         card.open_requested.connect(self.open_server)
         card.start_requested.connect(self._start)
         card.stop_requested.connect(self._stop)
+        card.edit_requested.connect(self.edit_server)
+        card.clone_requested.connect(self.clone_server)
+        card.delete_requested.connect(self.delete_server)
         self._cards[server.id] = card
         self.grid.add(card)
 

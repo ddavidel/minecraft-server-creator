@@ -123,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         migrate_legacy()
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Legacy migration failed")
+    sm.cleanup_temporary_files()  # interrupted backups, restores and imports
 
     bridge = get_bridge()
     bridge.start()
@@ -142,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     bridge.call(sm.preload_versions)
     bridge.call(_send_app_start)
     window.start_update_check()
-    QTimer.singleShot(800, window.maybe_prompt_shortcut)
+    QTimer.singleShot(800, window.run_startup_prompts)  # What's New or shortcut prompt
 
     code = app.exec()
 

@@ -22,8 +22,23 @@ from mcsc_gui.ui.theme.tokens import TOKENS
 logger = logging.getLogger(__name__)
 
 DASHBOARD = "dashboard"
-SERVER = "server"
-EDITOR = "editor"
+# Sections of a server page, in sidebar order (the sidebar becomes contextual on them)
+SERVER = "server"  # overview
+CONSOLE = "console"
+CONFIGURATION = "configuration"
+BACKUPS = "backups"
+SERVER_SETTINGS = "server_settings"
+SERVER_SECTIONS = (SERVER, CONSOLE, CONFIGURATION, BACKUPS, SERVER_SETTINGS)
+EDITOR = "editor"  # a config file, opened from the configuration section
+
+
+def section_of(route: "Route") -> str | None:
+    """The server section a route belongs to (the editor is part of the configuration)."""
+    if route.kind in SERVER_SECTIONS:
+        return route.kind
+    if route.kind == EDITOR:
+        return CONFIGURATION
+    return None
 
 
 @dataclass(frozen=True)
@@ -75,7 +90,14 @@ class Navigator(QObject):
         self._go(Route(DASHBOARD), mode="reset")
 
     def to_server(self, server_id: str) -> None:
-        self._go(Route(SERVER, (server_id,)), mode="push")
+        """Open a server's overview."""
+        self.to_section(server_id, SERVER)
+
+    def to_section(self, server_id: str, section: str) -> None:
+        """Open a section of a server. Sections are siblings: "back" goes to the dashboard."""
+        if section not in SERVER_SECTIONS:
+            raise ValueError(f"Unknown server section: {section!r}")
+        self._go(Route(section, (server_id,)), mode="section")
 
     def to_editor(self, server_id: str, filename: str) -> None:
         self._go(Route(EDITOR, (server_id, filename)), mode="push")
@@ -119,6 +141,8 @@ class Navigator(QObject):
             self._history.pop()
         elif mode == "replace":
             self._history[-1] = route
+        elif mode == "section":
+            self._history = [Route(DASHBOARD), route]
         else:
             self._history.append(route)
         if self._history[-1] != route:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from mcsc_gui.ui.theme.icons import icon
 from mcsc_gui.ui.theme.tokens import TOKENS
@@ -15,8 +15,11 @@ from mcsc_gui.ui.widgets.sparkline import Sparkline
 
 
 class StatTile(Card):
+    """With ``row=True`` the sparkline sits right of the value (a wide, short tile)."""
+
     def __init__(self, icon_name: str, caption: str, unit: str = "",
-                 color: str | None = None, parent: QWidget | None = None) -> None:
+                 color: str | None = None, parent: QWidget | None = None, *,
+                 row: bool = False) -> None:
         super().__init__(parent, padding=TOKENS.spacing.md)
         self.unit = unit
         self.setToolTip(caption)
@@ -29,14 +32,26 @@ class StatTile(Card):
         art.setPixmap(icon(icon_name, color).pixmap(16, 16))
         head.addWidget(art)
         head.addWidget(label(caption, "caption"), 1)
-        self.layout_.addLayout(head)
 
         self.value_label = label("—", "title")
         self.value_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.layout_.addWidget(self.value_label)
-
         self.sparkline = Sparkline(color=color, parent=self)
-        self.layout_.addWidget(self.sparkline)
+
+        if row:
+            line = QHBoxLayout()
+            line.setSpacing(TOKENS.spacing.md)
+            texts = QVBoxLayout()
+            texts.setSpacing(TOKENS.spacing.xs)
+            texts.addLayout(head)
+            texts.addWidget(self.value_label)
+            line.addLayout(texts)
+            self.sparkline.setMinimumHeight(36)
+            line.addWidget(self.sparkline, 1, Qt.AlignmentFlag.AlignVCenter)
+            self.layout_.addLayout(line)
+        else:
+            self.layout_.addLayout(head)
+            self.layout_.addWidget(self.value_label)
+            self.layout_.addWidget(self.sparkline)
         self.setAccessibleName(caption)
 
     def set_value(self, value: float | None, history: Iterable[float] = ()) -> None:

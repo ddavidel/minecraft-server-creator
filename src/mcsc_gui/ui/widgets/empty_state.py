@@ -12,7 +12,8 @@ from mcsc_gui.ui.widgets.common import label
 
 class EmptyState(QWidget):
     def __init__(self, icon_name: str, title: str, text: str = "",
-                 action: QPushButton | None = None, parent: QWidget | None = None) -> None:
+                 action: QPushButton | QWidget | None = None,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -35,7 +36,7 @@ class EmptyState(QWidget):
         if text:
             body = label(text, "muted", wrap=True)
             body.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            body.setMaximumWidth(420)
+            body.setFixedWidth(420)  # a wrapped label needs a width to compute its height
             layout.addWidget(body, 0, Qt.AlignmentFlag.AlignHCenter)
         if action is not None:
             layout.addSpacing(TOKENS.spacing.sm)

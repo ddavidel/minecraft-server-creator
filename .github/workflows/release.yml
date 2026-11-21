@@ -119,6 +119,37 @@ jobs:
               out.write(f"version={new}\n")
           EOF
 
+      # The notes are written once per release, in the develop -> main PR
+      # (scripts/draft_changelog.py makes the draft). Minor/major releases
+      # without them are blocked; patches only get a warning.
+      - name: Check release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python - <<'EOF'
+          import json, os, sys, tomllib
+
+          new = os.environ["VERSION"]
+          with open("pyproject.toml", "rb") as f:
+              current = tomllib.load(f)["project"]["version"]
+          path = "src/mcsc_gui/static/changelog.json"
+          try:
+              with open(path, encoding="utf-8") as f:
+                  versions = {r.get("version") for r in json.load(f).get("releases", [])}
+          except (OSError, ValueError) as e:
+              sys.exit(f"::error::Can't read {path}: {e}")
+
+          if new in versions:
+              print(f"Release notes for {new} found")
+              sys.exit(0)
+          message = (f"No release notes for {new} in {path}. "
+                     "Run scripts/draft_changelog.py in the release PR.")
+          if new.split(".")[:2] == current.split(".")[:2]:
+              print(f"::warning::{message}")  # patch: the app just shows nothing
+          else:
+              sys.exit(f"::error::{message}")
+          EOF
+
       - name: Ensure tag does not already exist
         env:
           VERSION: ${{ steps.version.outputs.version }}

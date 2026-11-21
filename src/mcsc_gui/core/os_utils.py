@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import socket
 import subprocess
 
 logger = logging.getLogger(__name__)
@@ -57,3 +58,17 @@ def hide_child_consoles() -> bool:
     subprocess.Popen.__init__ = init  # type: ignore[method-assign]
     logger.info("No console: child processes will run without a window")
     return True
+
+
+def local_ip_address() -> str | None:
+    """This PC's address on the local network (``None`` if there's no network).
+
+    Connecting a UDP socket only picks the outgoing interface: nothing is sent.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("10.255.255.255", 1))
+            address = sock.getsockname()[0]
+    except OSError:
+        return None
+    return None if address.startswith("0.") else address

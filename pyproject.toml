@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minecraft-server-creator"
-version = "3.0.1"
+version = "3.1.0"
 description = "Minecraft Server Creator - Manage Minecraft servers"
 authors = [{ name = "ddavidel", email = "ddavidel@proton.me" }]
 readme = "README.md"
@@ -12,7 +12,7 @@ license = { file = "LICENSE" }
 dependencies = [
     "requests",
     "appdirs",
-    "pymcsc==0.1.0",  # server management, imported as `mcsc` (pinned: bump deliberately after testing)
+    "pymcsc==0.2.0",  # server management, imported as `mcsc` (pinned: bump deliberately after testing)
     "PySide6-Essentials>=6.8",
     "qtawesome",
 ]

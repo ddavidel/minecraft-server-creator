@@ -12,6 +12,8 @@ MCSC is a user-friendly tool written in Python with a GUI that simplifies the pr
 - **Edit server.properties**: Customize your Minecraft server settings by editing the `server.properties` file with a built-in editor.
 - **User-Friendly GUI**: A simple and intuitive interface designed for both beginners and experienced users.
 - **Manage Server Instances**: Keep track of all your servers in one place.
+- **Backups**: Back up a server with one click and restore it later (the current state is saved first). Backups can also be automatic, when a server starts or stops (app-wide or per server), keeping the latest ones. They are stored in the app data folder, under `backups/<server id>/`.
+- **Export and Import**: Export a server to a single `.zip` to move it to another PC, then import it there, or import an existing server folder made outside MCSC (it is copied, never moved).
 
 ## Screenshots
 | Server console and resources | Config editor |
@@ -51,6 +53,19 @@ To run it from the source code:
 - `src/mcsc_gui`: the desktop app (Qt/PySide6 interface, translations, settings, telemetry, updates).
 - Server management (creating, running, monitoring and configuring servers) is provided by the
   [pymcsc](https://pypi.org/project/pymcsc/) library, imported as `mcsc`.
+
+## Release notes
+The "What's New" popup (shown once after an update) and the changelog in the App Settings
+read `src/mcsc_gui/static/changelog.json`. The notes are written **once per release**, not in
+every PR — just keep using conventional commit messages (`feat(scope): …`, `fix: …`).
+
+1. In the release PR (`develop` → `main`), draft the entry from the commits since the last tag:
+   `python scripts/draft_changelog.py` (`--dry-run` to only print it, `--include-fixes` to list
+   the fixes too, `--version X.Y.Z` to choose the version).
+2. Edit the draft: user-facing wording, remove internal changes, add the `it` translation
+   (missing languages fall back to English).
+3. Commit it in the release PR. The release workflow fails on a minor/major release without
+   notes (patch releases only get a warning, and the app shows nothing for them).
 
 ## Code signing policy
 Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
