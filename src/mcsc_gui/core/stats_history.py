@@ -1,5 +1,5 @@
 """
-History of the server stats (online players, CPU, RAM) for the trend charts.
+History of the server stats (online players, CPU, RAM, disk I/O) for the trend charts.
 
 Samples are stored in a small SQLite database (one row per running server every
 :data:`SAMPLE_INTERVAL` seconds) so the same store serves the per-server charts
@@ -7,8 +7,10 @@ and, later, the Dashboard/Overview charts (aggregate CPU/RAM, players over time)
 Rows older than :data:`RETENTION_DAYS` are pruned when the app starts.
 
 While a server is running a :class:`StatsRecorder` reads ``server.monitor.usage``
-and the latest :func:`mcsc_gui.core.players.status` and writes a sample. No UI
-toolkit here: recorders run in the asyncio bridge thread.
+and the latest :func:`mcsc_gui.core.players.status` and writes a sample. Disk I/O
+comes in bursts (world saves, chunk loading), so the recorder reads it every
+:data:`DISK_STEP` seconds and stores the average of the interval instead of a
+single reading. No UI toolkit here: recorders run in the asyncio bridge thread.
 """
 
 from __future__ import annotations
@@ -21,7 +23,8 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from statistics import fmean
 from pathlib import Path
 
 from mcsc import MinecraftServer
@@ -32,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 SAMPLE_INTERVAL = 60.0  # seconds between two samples of a running server
 RETENTION_DAYS = 30
+DISK_STEP = 1.0  # seconds between two disk readings (pymcsc samples every second)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS samples (
@@ -40,11 +44,20 @@ CREATE TABLE IF NOT EXISTS samples (
     players INTEGER,              -- NULL when unknown
     max_players INTEGER,
     cpu_percent REAL NOT NULL,
-    ram_mb REAL NOT NULL
+    ram_mb REAL NOT NULL,
+    disk_read_mb REAL,            -- MB/s, average of the interval; NULL in older rows
+    disk_write_mb REAL
 );
 CREATE INDEX IF NOT EXISTS samples_server_ts ON samples (server_id, ts);
 CREATE INDEX IF NOT EXISTS samples_ts ON samples (ts);
 """
+# Columns added after the first release: (name, SQL type) added to older databases
+ADDED_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("disk_read_mb", "REAL"),
+    ("disk_write_mb", "REAL"),
+)
+COLUMNS = ("server_id, ts, players, max_players, cpu_percent, ram_mb, disk_read_mb,"
+           " disk_write_mb")
 
 
 @dataclass(frozen=True)
@@ -55,6 +68,8 @@ class StatsSample:
     max_players: int | None
     cpu_percent: float
     ram_mb: float
+    disk_read_mb: float | None = None   # MB/s
+    disk_write_mb: float | None = None  # MB/s
 
 
 class StatsStore:
@@ -74,6 +89,7 @@ class StatsStore:
             try:
                 if not self._ready:
                     connection.executescript(SCHEMA)
+                    _add_missing_columns(connection)
                     self._ready = True
                 with connection:  # commit or rollback
                     yield connection
@@ -83,10 +99,10 @@ class StatsStore:
     def record(self, sample: StatsSample) -> None:
         with self._connect() as db:
             db.execute(
-                "INSERT INTO samples (server_id, ts, players, max_players, cpu_percent, ram_mb)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
+                f"INSERT INTO samples ({COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (sample.server_id, int(sample.ts), sample.players, sample.max_players,
-                 float(sample.cpu_percent), float(sample.ram_mb)),
+                 float(sample.cpu_percent), float(sample.ram_mb), sample.disk_read_mb,
+                 sample.disk_write_mb),
             )
 
     def samples(self, server_id: str, since: float, until: float | None = None) -> list[StatsSample]:
@@ -94,8 +110,7 @@ class StatsStore:
         until = time.time() if until is None else until
         with self._connect() as db:
             rows = db.execute(
-                "SELECT server_id, ts, players, max_players, cpu_percent, ram_mb FROM samples"
-                " WHERE server_id = ? AND ts >= ? AND ts <= ? ORDER BY ts",
+                f"SELECT {COLUMNS} FROM samples WHERE server_id = ? AND ts >= ? AND ts <= ? ORDER BY ts",
                 (server_id, int(since), int(until)),
             ).fetchall()
         return [StatsSample(*row) for row in rows]
@@ -130,12 +145,21 @@ class StatsStore:
             db.execute("DELETE FROM samples WHERE server_id = ?", (server_id,))
 
 
+def _add_missing_columns(db: sqlite3.Connection) -> None:
+    """Upgrade a database created by an older version (new columns are NULL)."""
+    existing = {row[1] for row in db.execute("PRAGMA table_info(samples)")}
+    for name, kind in ADDED_COLUMNS:
+        if name not in existing:
+            db.execute(f"ALTER TABLE samples ADD COLUMN {name} {kind}")
+
+
 def sample_now(server: MinecraftServer, now: float | None = None) -> StatsSample:
     """Current stats of a server (resources from pymcsc, players from the tracker)."""
     usage = server.monitor.usage
     status = players.status(server.id)
     return StatsSample(server.id, int(time.time() if now is None else now), status.online,
-                       status.max, usage.cpu_percent, usage.ram_mb)
+                       status.max, usage.cpu_percent, usage.ram_mb, usage.disk_read_mb,
+                       usage.disk_write_mb)
 
 
 class StatsRecorder:
@@ -166,12 +190,25 @@ class StatsRecorder:
     async def _run(self) -> None:
         # The first sample after one interval: the CPU/players of a just started
         # server are not meaningful yet.
+        ticks = max(1, round(self.interval / DISK_STEP))
+        step = self.interval / ticks
         while True:
-            await asyncio.sleep(self.interval)
+            reads: list[float] = []
+            writes: list[float] = []
+            for _tick in range(ticks):
+                await asyncio.sleep(step)
+                if self.server.is_active:
+                    usage = self.server.monitor.usage
+                    reads.append(usage.disk_read_mb)
+                    writes.append(usage.disk_write_mb)
             if not self.server.is_active:
                 continue
+            sample = self._sample(self.server)
+            if reads:  # the average of the interval, not the last second only
+                sample = replace(sample, disk_read_mb=round(fmean(reads), 3),
+                                 disk_write_mb=round(fmean(writes), 3))
             try:
-                await asyncio.to_thread(self.store.record, self._sample(self.server))
+                await asyncio.to_thread(self.store.record, sample)
             except (OSError, sqlite3.Error) as e:
                 logger.warning(f"Can't save the stats of server {self.server.id}: {e}")
 

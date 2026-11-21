@@ -6,6 +6,7 @@ Server console: read-only log view + command input with history (FR-012).
   in one call;
 * it scrolls to the bottom only if the user was already at the bottom;
 * ``[INFO]``/``WARN``/``ERROR`` levels are colored by a syntax highlighter;
+* ANSI color codes of the output (Paper, plugins) become text colors;
 * the input remembers the sent commands (Up/Down).
 """
 
@@ -15,9 +16,12 @@ import re
 from collections.abc import Iterable
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFont, QKeyEvent, QSyntaxHighlighter, QTextCharFormat
+from PySide6.QtGui import (
+    QColor, QFont, QKeyEvent, QSyntaxHighlighter, QTextBlockFormat, QTextCharFormat, QTextCursor,
+)
 from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QPlainTextEdit, QVBoxLayout, QWidget
 
+from mcsc_gui.core import ansi
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.ui.theme.tokens import TOKENS
 from mcsc_gui.ui.widgets.common import icon_button
@@ -132,6 +136,7 @@ class ConsoleView(QWidget):
         font.setPointSizeF(9.5)
         self.log.setFont(font)
         self.highlighter = LogHighlighter(self.log.document())
+        self._formats: dict[ansi.Style, QTextCharFormat] = {}
         layout.addWidget(self.log, 1)
 
         row = QHBoxLayout()
@@ -164,11 +169,48 @@ class ConsoleView(QWidget):
         bar = self.log.verticalScrollBar()
         at_bottom = self.is_at_bottom()
         position = bar.value()
-        self.log.appendPlainText("\n".join(lines))
+        self._append(lines)
         if at_bottom:
             bar.setValue(bar.maximum())
         else:
             bar.setValue(min(position, bar.maximum()))
+
+    def _append(self, lines: list[str]) -> None:
+        """Append lines; ANSI color codes become text formats (not shown as text).
+
+        Every run gets an explicit format: text inserted without one (e.g. by
+        ``appendPlainText``) inherits the format of the last character, so a plain
+        line after a red one would be red too.
+        """
+        document = self.log.document()
+        cursor = QTextCursor(document)
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        cursor.beginEditBlock()
+        new_block = not document.isEmpty()
+        default = self._char_format(ansi.DEFAULT)
+        for line in lines:
+            if new_block:
+                cursor.insertBlock(QTextBlockFormat(), default)
+            new_block = True
+            if "\x1b" not in line:  # fast path: most lines have no color codes
+                cursor.insertText(line, default)
+                continue
+            for text, style in ansi.parse(line):  # every line starts from the default
+                cursor.insertText(text, self._char_format(style))
+        cursor.endEditBlock()
+
+    def _char_format(self, style: ansi.Style) -> QTextCharFormat:
+        fmt = self._formats.get(style)
+        if fmt is None:
+            fmt = QTextCharFormat()
+            if style.color is not None:
+                fmt.setForeground(QColor(style.color))
+            if style.bold:
+                fmt.setFontWeight(QFont.Weight.Bold)
+            fmt.setFontItalic(style.italic)
+            fmt.setFontUnderline(style.underline)
+            self._formats[style] = fmt
+        return fmt
 
     def set_lines(self, lines: Iterable[str]) -> None:
         self.log.clear()

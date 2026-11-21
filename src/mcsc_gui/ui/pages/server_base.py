@@ -33,7 +33,7 @@ SECTION_TITLES: dict[str, str] = {
 
 
 class ServerHeader(QWidget):
-    """Name, state, details, "open folder" and Start/Stop of a server."""
+    """Name, state, "open folder" and Start/Stop of a server."""
 
     def __init__(self, server: MinecraftServer, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -43,8 +43,6 @@ class ServerHeader(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(s.md)
 
-        titles = QVBoxLayout()
-        titles.setSpacing(2)
         name_row = QHBoxLayout()
         name_row.setSpacing(s.sm)
         self.name_label = label("", "display")
@@ -54,10 +52,7 @@ class ServerHeader(QWidget):
         self.badge = StatusBadge(server.state)
         name_row.addWidget(self.badge, 0, Qt.AlignmentFlag.AlignVCenter)
         name_row.addStretch(1)
-        titles.addLayout(name_row)
-        self.details_label = label("", "muted")
-        titles.addWidget(self.details_label)
-        row.addLayout(titles, 1)
+        row.addLayout(name_row, 1)
 
         self.folder_button = icon_button("folder", _("Open server folder"))
         self.folder_button.clicked.connect(lambda: open_file_explorer(self.server.path))
@@ -74,10 +69,6 @@ class ServerHeader(QWidget):
         server = self.server
         config = server.config
         self.name_label.setText(config.name)
-        self.details_label.setText(
-            f"{config.server_type.label} {config.version} · {config.ram_gb} GB RAM · "
-            f"{_('Port')} {config.port}"
-        )
         self.badge.set_state(server.state)
         self.badge.set_activity(sm.activity_label(server))
         self.start_button.setEnabled(sm.can_start(server))
