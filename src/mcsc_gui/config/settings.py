@@ -36,3 +36,5 @@ SERVER_STOP_TIMEOUT = 60  # seconds before a server that doesn't stop gets kille
 BACKUPS_DIR_PATH = os.path.join(DATA_DIR_PATH, "backups")
 # Per-server app preferences (automatic backup override), keyed by server id
 SERVER_PREFS_PATH = os.path.join(DATA_DIR_PATH, "config", "server_prefs.json")
+# History of the server stats (players, CPU, RAM) for the trend charts (SQLite)
+STATS_DB_PATH = os.path.join(DATA_DIR_PATH, "stats.db")

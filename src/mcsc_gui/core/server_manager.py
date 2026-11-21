@@ -64,6 +64,7 @@ from mcsc import (
 )
 
 from mcsc_gui.config import settings as mcssettings
+from mcsc_gui.core import players, stats_history
 from mcsc_gui.core.notifier import get_notifier, notify_warning
 from mcsc_gui.core.os_utils import local_ip_address
 from mcsc_gui.core.server_prefs import ServerPrefs
@@ -95,8 +96,11 @@ manager = ServerManager(
     app_version=_app_version(),
 )
 
-# Per-server app preferences (automatic backup override, auto start)
+# Per-server app preferences (automatic backup override, auto start, player tracking)
 prefs = ServerPrefs(mcssettings.SERVER_PREFS_PATH)
+
+# Stats history for the trend charts (the database is opened on first use)
+stats_history.configure(stats_history.StatsStore(mcssettings.STATS_DB_PATH))
 
 # Options for the "Server Type" selects: {0: "Vanilla", 1: "Paper", 2: "Forge"}
 SERVER_TYPES: dict[int, str] = {int(t): t.label for t in ServerType}
@@ -114,6 +118,9 @@ AUTO_START_PREF = "auto_start"
 # before the next one starts
 AUTO_START_WAIT = 120
 AUTO_START_POLL = 0.5
+# Per-server preference: read the online players through the Query protocol and
+# keep enable-query/query.port on in server.properties (absent = on)
+PLAYER_TRACKING_PREF = "player_tracking"
 # Servers being started by auto_start_servers (telemetry "trigger")
 _auto_starting: set[str] = set()
 
@@ -355,7 +362,15 @@ async def _send_event(event: str, details: dict[str, Any]) -> None:
 
 
 async def _on_state_change(server: MinecraftServer, old: ServerState, new: ServerState) -> None:
-    """Server state listener: start/stop telemetry and the "on stop" automatic backup."""
+    """Server state listener: players and stats tracking, start/stop telemetry and the
+    "on stop" automatic backup."""
+    if new is ServerState.RUNNING:
+        players.start_tracking(server, use_query=player_tracking_enabled(server))
+        stats_history.start_recording(server)
+    elif new in (ServerState.STOPPING, ServerState.STOPPED):
+        players.stop_tracking(server.id)
+        stats_history.stop_recording(server.id)
+
     if new is ServerState.STARTING:
         details = telemetry_details(server)
         if server.id in _auto_starting:
@@ -367,12 +382,29 @@ async def _on_state_change(server: MinecraftServer, old: ServerState, new: Serve
         await send_event_async("server_stop", details=telemetry_details(server))
 
 
+def _on_output(server: MinecraftServer, line: str) -> None:
+    """Output listener: a player joined or left, read the players again now."""
+    if players.is_join_leave_line(line):
+        players.poke(server.id)
+
+
 def _attach(server: MinecraftServer) -> MinecraftServer:
     """Register the app listeners on a server (once)."""
     if server.id not in _attached:
         server.add_state_listener(_on_state_change)
+        server.add_output_listener(_on_output)
         _attached.add(server.id)
     return server
+
+
+def _detach(server: MinecraftServer) -> None:
+    _attached.discard(server.id)
+    for remove, listener in ((server.remove_state_listener, _on_state_change),
+                             (server.remove_output_listener, _on_output)):
+        try:
+            remove(listener)
+        except ValueError:
+            pass
 
 
 def load_servers() -> list[MinecraftServer]:
@@ -466,12 +498,14 @@ async def create_server(
 
 
 def update_server(server: MinecraftServer, name: str, ram_gb: int,
-                  auto_backup: str | None = None, auto_start: bool | None = None) -> None:
+                  auto_backup: str | None = None, auto_start: bool | None = None,
+                  player_tracking: bool | None = None) -> None:
     """Change a server's editable settings and persist them.
 
     ``auto_backup`` (one of :data:`SERVER_BACKUP_POLICIES`) is the server's
-    automatic backup override and ``auto_start`` whether it starts when the app
-    opens; ``None`` leaves them unchanged.
+    automatic backup override, ``auto_start`` whether it starts when the app
+    opens and ``player_tracking`` whether the app turns Query on to read the
+    online players; ``None`` leaves them unchanged.
     """
     name = (name or "").strip()
     if not name:
@@ -480,6 +514,8 @@ def update_server(server: MinecraftServer, name: str, ram_gb: int,
         set_server_backup_policy(server, auto_backup)
     if auto_start is not None:
         prefs.set(server.id, AUTO_START_PREF, True if auto_start else None)
+    if player_tracking is not None:
+        prefs.set(server.id, PLAYER_TRACKING_PREF, None if player_tracking else False)
     server.config.name = name
     server.config.ram_gb = int(ram_gb)
     manager.save()
@@ -493,11 +529,13 @@ async def delete_server(server: MinecraftServer, delete_files: bool,
     details = telemetry_details(server)
     manager.delete(server, delete_files=delete_files, delete_backups=delete_backups)
     prefs.remove(server.id)
-    _attached.discard(server.id)
-    try:
-        server.remove_state_listener(_on_state_change)
-    except ValueError:
-        pass
+    _detach(server)
+    store = stats_history.get_store()
+    if store is not None:
+        try:
+            await asyncio.to_thread(store.remove_server, server.id)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning(f"Can't delete the stats history of server {server.id}: {e}")
     _fire(_removed_callbacks, server)
     await send_event_async("server_delete", details=details)
 
@@ -516,6 +554,8 @@ async def start_server(server: MinecraftServer) -> None:
     if not server.is_active and not is_busy(server) \
             and effective_backup_policy(server) == "on_start":
         await auto_backup(server)
+    if not server.is_active and player_tracking_enabled(server):
+        await _enable_query(server)
     try:
         await server.start()
     except MCSCError as e:
@@ -640,6 +680,33 @@ def set_server_auto_start(server: MinecraftServer, enabled: bool) -> None:
     """Turn the server's auto start on or off (and notify the UI)."""
     prefs.set(server.id, AUTO_START_PREF, True if enabled else None)
     _fire(_updated_callbacks, server)
+
+
+# ---------------------------------------------------------- player tracking
+
+
+def player_tracking_enabled(server: MinecraftServer) -> bool:
+    """True if the app turns Query on for the server (the default)."""
+    return prefs.get(server.id, PLAYER_TRACKING_PREF, True) is not False
+
+
+def set_player_tracking(server: MinecraftServer, enabled: bool) -> None:
+    """Turn player tracking on or off; it applies at the next start."""
+    prefs.set(server.id, PLAYER_TRACKING_PREF, None if enabled else False)
+    _fire(_updated_callbacks, server)
+
+
+def manages_query_keys(server: MinecraftServer, filename: str) -> bool:
+    """True if the app rewrites enable-query/query.port of this file at every start."""
+    return filename == "server.properties" and player_tracking_enabled(server)
+
+
+async def _enable_query(server: MinecraftServer) -> None:
+    """Turn Query on in server.properties before a start. Never raises."""
+    try:
+        await asyncio.to_thread(players.ensure_query_enabled, server)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Can't enable the query protocol of server {server.id}: {e}")
 
 
 def auto_start_candidates() -> list[MinecraftServer]:
@@ -889,6 +956,8 @@ async def clone_server(source: MinecraftServer, name: str, ram_gb: int,
     policy = server_backup_policy(source)
     if policy != DEFAULT_POLICY:
         set_server_backup_policy(server, policy)
+    if not player_tracking_enabled(source):
+        prefs.set(server.id, PLAYER_TRACKING_PREF, False)
     logger.info(f"Cloned server {source.id} into {server.id}")
     _attach(server)
     _fire(_added_callbacks, server)

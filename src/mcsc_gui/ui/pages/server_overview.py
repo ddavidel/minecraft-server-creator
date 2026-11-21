@@ -1,4 +1,5 @@
-"""Server overview: resources, read-only logs, connection, latest backups, config files."""
+"""Server overview: resources, players, read-only logs, connection, latest backups,
+config files."""
 
 from __future__ import annotations
 
@@ -6,16 +7,25 @@ from collections.abc import Callable
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 from mcsc import Backup, MinecraftServer, ServerState
 
 from mcsc_gui.config import settings as mcssettings
+from mcsc_gui.core import players
 from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.ui import backup_actions
 from mcsc_gui.ui.config_files import config_file_label, visible_config_files
-from mcsc_gui.ui.navigator import BACKUPS, CONFIGURATION, CONSOLE, SERVER
+from mcsc_gui.ui.dialogs.stats_history import StatsHistoryDialog
+from mcsc_gui.ui.navigator import BACKUPS, CONFIGURATION, SERVER
 from mcsc_gui.ui.pages.server_base import ServerPage
 from mcsc_gui.ui.server_events import ServerEvents
 from mcsc_gui.ui.tasks import toasts
@@ -25,6 +35,7 @@ from mcsc_gui.ui.widgets.backup_list import RecentBackups
 from mcsc_gui.ui.widgets.card import Card
 from mcsc_gui.ui.widgets.common import button, icon_button, label
 from mcsc_gui.ui.widgets.console import ConsoleView
+from mcsc_gui.ui.widgets.player_list import PlayerList
 from mcsc_gui.ui.widgets.stat_tile import StatTile
 
 USAGE_INTERVAL_MS = 1000
@@ -61,21 +72,22 @@ class ServerOverviewPage(ServerPage):
         self.cpu_tile = StatTile("memory", _("CPU usage"), "%", p.info, row=True)
         self.read_tile = StatTile("disk_read", _("Disk read"), "MB/s", p.warning, row=True)
         self.write_tile = StatTile("disk_write", _("Disk write"), "MB/s", p.dirt, row=True)
-        for column, tile in enumerate((self.ram_tile, self.cpu_tile, self.read_tile,
-                                       self.write_tile)):
+        self.players_tile = StatTile("players", _("Players"), color=p.text_muted, row=True)
+        for column, tile in enumerate((self.players_tile, self.ram_tile, self.cpu_tile,
+                                       self.read_tile, self.write_tile)):
             stats.addWidget(tile, 0, column)
             stats.setColumnStretch(column, 1)
+        self.history_button = icon_button("trend", _("Stats history"))
+        self.history_button.clicked.connect(self.show_history)
+        stats.addWidget(self.history_button, 0, 5, Qt.AlignmentFlag.AlignVCenter)
         self.body.addLayout(stats)
 
         content = QHBoxLayout()
         content.setSpacing(s.lg)
 
-        # ------------------------------------------------------------- logs
+        # ------------------------------------------------ logs (the console is in the sidebar)
         logs = QVBoxLayout()
         logs.setSpacing(s.sm)
-        self.console_link = button(_("Open console"), "terminal", variant="ghost")
-        self.console_link.clicked.connect(lambda: self.go_to(CONSOLE))
-        logs.addLayout(_card_title(_("LOGS"), self.console_link))
         self.logs = ConsoleView(mcssettings.MAX_LOG_LINES, read_only=True)
         logs.addWidget(self.logs, 1)
         content.addLayout(logs, 1)
@@ -103,6 +115,14 @@ class ServerOverviewPage(ServerPage):
         connection.layout_.addWidget(
             label(_("Players on your network join with this address."), "muted", wrap=True))
         side.addWidget(connection)
+
+        players_card = Card(padding=s.md)
+        players_card.layout_.setSpacing(s.sm)
+        self.players_title = label("", "overline")
+        players_card.layout_.addWidget(self.players_title)
+        self.player_list = PlayerList()
+        players_card.layout_.addWidget(self.player_list)
+        side.addWidget(players_card)
 
         backups_card = Card(padding=s.md)
         backups_card.layout_.setSpacing(s.sm)
@@ -133,7 +153,20 @@ class ServerOverviewPage(ServerPage):
         self.file_buttons: dict[str, QWidget] = {}
         side.addWidget(files_card)
         side.addStretch(1)
-        content.addWidget(side_widget)
+        # The cards may need more height than the window has (players, several
+        # config files): scroll instead of squeezing them
+        self.side_scroll = QScrollArea()
+        self.side_scroll.setObjectName("SideScroll")
+        self.side_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.side_scroll.setWidgetResizable(True)
+        self.side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.side_scroll.setStyleSheet(
+            "QScrollArea#SideScroll, QScrollArea#SideScroll > QWidget > QWidget "
+            "{ background: transparent; }")
+        self.side_scroll.setWidget(side_widget)
+        bar = self.side_scroll.verticalScrollBar().sizeHint().width()
+        self.side_scroll.setFixedWidth(SIDE_WIDTH + bar + s.xs)
+        content.addWidget(self.side_scroll)
         self.body.addLayout(content, 1)
 
         # ----------------------------------------------------------- wiring
@@ -157,6 +190,22 @@ class ServerOverviewPage(ServerPage):
         self.policy_label.setText(_("Automatic: {policy}", policy=_(
             sm.BACKUP_POLICY_LABELS[sm.effective_backup_policy(self.server)])))
         self._refresh_files()
+        self._show_players(players.status(self.server.id))
+
+    def _show_players(self, status: players.PlayerStatus) -> None:
+        running = self.server.state is ServerState.RUNNING
+        self.player_list.set_status(status, running=running)
+        if running and status.known:
+            self.players_title.setText(_("PLAYERS ({count})", count=status.label()))
+        else:
+            self.players_title.setText(_("PLAYERS"))
+        self.players_tile.set_text(status.label() if running else None,
+                                   self._history.series(self.server.id, "players"))
+
+    def show_history(self) -> StatsHistoryDialog:
+        dialog = StatsHistoryDialog(self, self.server)
+        dialog.open()
+        return dialog
 
     def reload_backups(self) -> None:
         backups = self._load_backups(self.server)
@@ -204,11 +253,16 @@ class ServerOverviewPage(ServerPage):
     def on_backups_changed(self) -> None:
         self.reload_backups()
 
+    def on_players_changed(self, status: players.PlayerStatus) -> None:
+        self._show_players(status)
+
     def on_dispose(self) -> None:
         self.usage_timer.stop()
 
     def _sample_usage(self) -> None:
-        usage = self._history.sample(self.server)
+        status = players.status(self.server.id)
+        running = self.server.state is ServerState.RUNNING
+        usage = self._history.sample(self.server, status.online if running else None)
         active = self.server.is_active
         sid = self.server.id
         h = self._history
@@ -219,3 +273,5 @@ class ServerOverviewPage(ServerPage):
                                  h.series(sid, "disk_read_mb"))
         self.write_tile.set_value(usage.disk_write_mb if active else None,
                                   h.series(sid, "disk_write_mb"))
+        self.players_tile.set_text(status.label() if running else None,
+                                   h.series(sid, "players"))

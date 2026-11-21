@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from mcsc import MinecraftServer
 
+from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.ui import config_model as cm
 from mcsc_gui.ui.tasks import run_blocking
@@ -78,6 +79,14 @@ class ConfigEditorPage(QWidget):
         self.save_button.clicked.connect(self.save)
         header.addWidget(self.save_button)
         root.addLayout(header)
+
+        # Player tracking rewrites these keys at every start: say so
+        self.managed_hint = label(
+            _("MCSC manages enable-query and query.port to show the online players: they are "
+              "turned back on at every start. Turn off \"Track online players\" in the server "
+              "settings to change them."), "muted", wrap=True)
+        self.managed_hint.setVisible(sm.manages_query_keys(server, filename))
+        root.addWidget(self.managed_hint)
 
         self.proxy = QSortFilterProxyModel(self)
         self.proxy.setRecursiveFilteringEnabled(True)

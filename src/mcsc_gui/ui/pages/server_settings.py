@@ -1,4 +1,5 @@
-"""Server settings: name, RAM, automatic backups and auto start; export, clone and delete."""
+"""Server settings: name, RAM, automatic backups, auto start and player tracking; export,
+clone and delete."""
 
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import QCheckBox, QComboBox, QGridLayout, QHBoxLayout, QL
 
 from mcsc import MinecraftServer, suggested_ram_gb, total_ram_gb
 
+from mcsc_gui.core import players
 from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.ui import backup_actions
@@ -85,6 +87,21 @@ class ServerSettingsPage(ServerPage):
         self.auto_start.setChecked(self._saved_auto_start)
         general.layout_.addWidget(self.auto_start)
 
+        self.player_tracking = QCheckBox(_("Track online players"))
+        self._saved_player_tracking = sm.player_tracking_enabled(server)
+        self.player_tracking.setChecked(self._saved_player_tracking)
+        self.player_tracking.setToolTip(_(
+            "MCSC turns on the Query protocol (enable-query and query.port in "
+            "server.properties) to read the online players. Query answers on UDP on the "
+            "server port and shares the player names, the version and the plugins: it is "
+            "not reachable from the internet unless you forward UDP too. When off, MCSC "
+            "leaves server.properties alone and shows only the player count."))
+        self.player_tracking.toggled.connect(self._update_tracking_note)
+        general.layout_.addWidget(self.player_tracking)
+        self.tracking_note = label(_("The change applies at the next start."), "caption")
+        self.tracking_note.hide()
+        general.layout_.addWidget(self.tracking_note)
+
         save_row = QHBoxLayout()
         save_row.addWidget(label(_("RAM changes apply at the next start."), "muted"), 1)
         self.save_button = button(_("Save"), "save", variant="primary")
@@ -145,9 +162,18 @@ class ServerSettingsPage(ServerPage):
         reason = backup_actions.backup_block_reason(self.server)
         self.export_button.setEnabled(reason is None)
         self.export_button.setToolTip(reason or "")
+        self._update_tracking_note()
         clone_reason = sm.clone_block_reason(self.server)
         self.clone_button.setEnabled(clone_reason is None)
         self.clone_button.setToolTip(clone_reason or "")
+
+    def _update_tracking_note(self, *_args) -> None:
+        # Compared with what the running server uses, also after saving
+        applied = players.uses_query(self.server.id)
+        if applied is None:
+            applied = sm.player_tracking_enabled(self.server)
+        changed = self.player_tracking.isChecked() != applied
+        self.tracking_note.setVisible(changed and self.server.is_active)
 
     def save(self) -> None:
         error = validate_name(self.name.widget.text())
@@ -156,15 +182,18 @@ class ServerSettingsPage(ServerPage):
             return
         policy = self.auto_backup.currentData()
         auto_start = self.auto_start.isChecked()
+        tracking = self.player_tracking.isChecked()
 
         def done(_result) -> None:
             self._saved_policy = policy
             self._saved_auto_start = auto_start
+            self._saved_player_tracking = tracking
 
         run_blocking(
             sm.update_server, self.server, self.name.widget.text(), self.ram.value(),
             policy if policy != self._saved_policy else None,
             auto_start if auto_start != self._saved_auto_start else None,
+            tracking if tracking != self._saved_player_tracking else None,
             progress=_("Saving settings of server '{name}'", name=self.server.name),
             success=_("Settings saved!"),
             disable=[self.save_button],

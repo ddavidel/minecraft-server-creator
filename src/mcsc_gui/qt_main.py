@@ -32,6 +32,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from mcsc_gui.config import settings as mcssettings  # noqa: E402
 from mcsc_gui.core import server_manager as sm  # noqa: E402
 from mcsc_gui.core import autostart  # noqa: E402
+from mcsc_gui.core import stats_history  # noqa: E402
 from mcsc_gui.core.async_bridge import get_bridge  # noqa: E402
 from mcsc_gui.core.logger import setup_logging  # noqa: E402
 from mcsc_gui.core.migration import migrate_legacy  # noqa: E402
@@ -176,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     # Background work: never blocks the window from showing
     bridge.call(_sync_autostart)
     bridge.call(sm.preload_versions)
+    bridge.call(stats_history.prune_old)
     window.auto_start_future = bridge.submit(_auto_start_servers())
     bridge.call(_send_app_start)
     window.start_update_check()
