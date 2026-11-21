@@ -1,11 +1,12 @@
-"""Popup with the trend charts of a server: online players, CPU and RAM over time."""
+"""Popup with the trend charts of a server: online players, RAM, CPU and disk I/O over time."""
 
 from __future__ import annotations
 
 import time
 from collections.abc import Callable
 
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QComboBox, QGridLayout, QHBoxLayout, QVBoxLayout, QWidget
 
 from mcsc import MinecraftServer
 
@@ -19,7 +20,7 @@ from mcsc_gui.ui.widgets.common import button, label
 from mcsc_gui.ui.widgets.overlay_dialog import OverlayDialog
 from mcsc_gui.ui.widgets.trend_chart import TrendChart, format_value
 
-PANEL_WIDTH = 720
+PANEL_WIDTH = 940  # two charts per row: fits the smallest window
 HOUR = 3600
 # (seconds, label) of the period selector
 RANGES: tuple[tuple[int, str], ...] = (
@@ -40,7 +41,7 @@ def _load(server_id: str, since: float, until: float) -> list[StatsSample]:
 
 
 class StatsHistoryDialog(OverlayDialog):
-    """Players, CPU and RAM of a server over a chosen period (from the SQLite history)."""
+    """Players, RAM, CPU and disk I/O of a server over a chosen period (SQLite history)."""
 
     def __init__(self, parent: QWidget, server: MinecraftServer, *,
                  load: Loader = _load) -> None:
@@ -67,12 +68,22 @@ class StatsHistoryDialog(OverlayDialog):
         self.players_chart = TrendChart(p.accent, interval=interval, integer=True)
         self.cpu_chart = TrendChart(p.info, "%", interval=interval)
         self.ram_chart = TrendChart(p.warning, "MB", interval=interval)
+        # Read and write share one chart (same unit, usually compared)
+        self.disk_chart = TrendChart((p.warning, p.dirt), "MB/s", interval=interval,
+                                     names=(_("Read"), _("Write")))
         self.peak_labels: dict[str, QWidget] = {}
-        for key, icon_name, caption, chart in (
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(s.xl)
+        grid.setVerticalSpacing(s.lg)
+        for index, (key, icon_name, caption, chart) in enumerate((
                 ("players", "players", _("Online players"), self.players_chart),
+                ("ram", "donut_large", _("RAM usage"), self.ram_chart),
                 ("cpu", "memory", _("CPU usage"), self.cpu_chart),
-                ("ram", "donut_large", _("RAM usage"), self.ram_chart)):
-            self.body.addLayout(self._section(key, icon_name, caption, chart))
+                ("disk", "disk_write", _("Disk I/O"), self.disk_chart))):
+            grid.addLayout(self._section(key, icon_name, caption, chart), index // 2, index % 2)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        self.body.addLayout(grid)
 
         self.close_action = self.add_button(button(_("Close"), "check", variant="primary"))
         self.close_action.clicked.connect(self.accept)
@@ -88,6 +99,12 @@ class StatsHistoryDialog(OverlayDialog):
         art.setPixmap(icon(icon_name, chart.color).pixmap(16, 16))
         head.addWidget(art)
         head.addWidget(label(caption, "caption"), 1)
+        for name, color in zip(chart.names, chart.colors):  # legend of a multi-line chart
+            swatch = label()
+            swatch.setFixedSize(8, 8)
+            swatch.setStyleSheet(f"background: {color};")
+            head.addWidget(swatch, 0, Qt.AlignmentFlag.AlignVCenter)
+            head.addWidget(label(name, "caption"))
         peak = label("", "caption")
         self.peak_labels[key] = peak
         head.addWidget(peak)
@@ -111,8 +128,10 @@ class StatsHistoryDialog(OverlayDialog):
         self.players_chart.set_points(((x.ts, x.players) for x in samples), since, until)
         self.cpu_chart.set_points(((x.ts, x.cpu_percent) for x in samples), since, until)
         self.ram_chart.set_points(((x.ts, x.ram_mb) for x in samples), since, until)
+        self.disk_chart.set_series([[(x.ts, x.disk_read_mb) for x in samples],
+                                    [(x.ts, x.disk_write_mb) for x in samples]], since, until)
         for key, chart in (("players", self.players_chart), ("cpu", self.cpu_chart),
-                           ("ram", self.ram_chart)):
+                           ("ram", self.ram_chart), ("disk", self.disk_chart)):
             peak = chart.peak()
             self.peak_labels[key].setText(
                 "" if peak is None else _("Peak: {value}", value=format_value(peak, chart.unit)))

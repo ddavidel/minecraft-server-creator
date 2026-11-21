@@ -33,6 +33,8 @@ from typing import Any, Literal
 
 from mcsc import MinecraftServer
 
+from mcsc_gui.core import ansi
+
 logger = logging.getLogger(__name__)
 
 POLL_INTERVAL = 5.0  # seconds between two polls of a running server
@@ -344,7 +346,8 @@ def poke(server_id: str) -> None:
 
 
 def is_join_leave_line(line: str) -> bool:
-    return JOIN_LEAVE_PATTERN.search(line) is not None
+    # Paper colors join/leave messages: the codes would break the end-of-line match
+    return JOIN_LEAVE_PATTERN.search(ansi.strip(line)) is not None
 
 
 def stop_all() -> None:

@@ -4,6 +4,9 @@ import time
 from unittest import mock
 
 import pytest
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QMouseEvent
+from PySide6.QtWidgets import QApplication
 
 from mcsc import ResourceUsage, ServerState
 
@@ -19,7 +22,7 @@ from mcsc_gui.ui.pages.server_overview import ServerOverviewPage
 from mcsc_gui.ui.pages.server_settings import ServerSettingsPage
 from mcsc_gui.ui.server_events import ServerEvents
 from mcsc_gui.ui.usage import UsageHistory
-from mcsc_gui.ui.widgets.trend_chart import nice_ceiling
+from mcsc_gui.ui.widgets.trend_chart import TrendChart, axis_labels, format_value, nice_ceiling
 
 
 @pytest.fixture
@@ -118,6 +121,22 @@ def test_overview_tile_and_list(qtbot, server, events):
         page.dispose()
 
 
+def test_overview_history_button_and_tiles_open_history(qtbot, server, events):
+    page = ServerOverviewPage(server, events, history=UsageHistory(), backups=lambda _s: [])
+    qtbot.addWidget(page)
+    try:
+        with mock.patch("mcsc_gui.ui.pages.server_overview.StatsHistoryDialog") as dialog:
+            page.history_button.click()
+            for tile in (page.players_tile, page.ram_tile, page.cpu_tile, page.read_tile,
+                         page.write_tile):
+                qtbot.mouseClick(tile, Qt.MouseButton.LeftButton)
+        assert dialog.call_count == 6
+        assert not page.ram_tile.value_label.textInteractionFlags() \
+            & Qt.TextInteractionFlag.TextSelectableByMouse
+    finally:
+        page.dispose()
+
+
 def test_settings_switch_saves_and_notes_running_change(qtbot, bridge, server, events):
     page = ServerSettingsPage(server, events)
     qtbot.addWidget(page)
@@ -156,8 +175,8 @@ def test_config_editor_hint_for_managed_keys(qtbot, bridge, server):
 
 def test_history_dialog_shows_the_samples(qtbot, bridge, host, server):
     now = time.time()
-    samples = [StatsSample("srv", int(now - 600), 1, 20, 10.0, 900.0),
-               StatsSample("srv", int(now - 540), 3, 20, 30.0, 1200.0)]
+    samples = [StatsSample("srv", int(now - 600), 1, 20, 10.0, 900.0),  # no disk data
+               StatsSample("srv", int(now - 540), 3, 20, 30.0, 1200.0, 0.5, 2.5)]
     calls = []
 
     def load(server_id, since, until):
@@ -171,6 +190,8 @@ def test_history_dialog_shows_the_samples(qtbot, bridge, host, server):
     assert dialog.peak_labels["players"].text() == "Peak: 3"
     assert dialog.peak_labels["ram"].text() == "Peak: 1,200 MB"
     assert len(dialog.cpu_chart.points) == 2
+    assert dialog.disk_chart.series(0) == [(samples[1].ts, 0.5)]
+    assert dialog.peak_labels["disk"].text() == "Peak: 2.5 MB/s"
 
     dialog.range_combo.setCurrentIndex(0)  # last hour
     qtbot.waitUntil(lambda: len(calls) == 2, timeout=2000)
@@ -178,9 +199,72 @@ def test_history_dialog_shows_the_samples(qtbot, bridge, host, server):
     dialog.grab()  # paints without errors
 
 
+def test_trend_chart_hover_shows_the_sample(qtbot):
+    chart = TrendChart(unit="MB")
+    qtbot.addWidget(chart)
+    chart.resize(600, 160)
+    now = time.time()
+    chart.set_points([(now - 3000, 900.0), (now - 600, 1200.0)], now - 3600, now)
+    chart.grab()  # lays out the plot
+
+    def move_to(x: float) -> None:
+        # Sent directly: the offscreen platform delivers no hover moves
+        pos = QPointF(x, 80)
+        QApplication.sendEvent(chart, QMouseEvent(
+            QEvent.Type.MouseMove, pos, chart.mapToGlobal(pos), Qt.MouseButton.NoButton,
+            Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+
+    x = chart._point_at(now - 600, 1200.0).x()
+    move_to(x + 3)
+    assert chart.hovered == (now - 600, (1200.0,))
+    lines = chart.hover_lines(*chart.hovered)
+    assert len(lines) == 1 and lines[0].startswith("1,200 MB · ")
+    chart.grab()  # paints the tooltip without errors
+
+    move_to(x - 150)  # far from every sample
+    assert chart.hovered is None
+    chart.set_points([], now - 3600, now)
+    assert chart.sample_near(x) is None
+
+
+def test_trend_chart_two_series_share_axes_and_tooltip(qtbot):
+    chart = TrendChart(("#ff0000", "#0000ff"), "MB/s", names=("Read", "Write"))
+    qtbot.addWidget(chart)
+    chart.resize(600, 160)
+    now = time.time()
+    t1, t2 = now - 1200, now - 600
+    # An older row without disk data (None) is left out of the read line only
+    chart.set_series([[(t1, None), (t2, 0.5)], [(t1, 0.2), (t2, 1.5)]], now - 3600, now)
+    assert chart.series(0) == [(t2, 0.5)]
+    assert chart.peaks() == [0.5, 1.5] and chart.peak() == 1.5
+    assert chart.values_at(t1) == (None, 0.2)
+    lines = chart.hover_lines(t1, chart.values_at(t1))
+    assert lines[1:] == ["Read  —", "Write  0.20 MB/s"]
+    chart.grab()
+    chart._set_hover(chart.sample_near(chart._x_at(t2)))  # pylint: disable=protected-access
+    assert chart.hovered == (t2, (0.5, 1.5))
+    chart.grab()  # paints both dots and the two-line tooltip
+
+
 def test_nice_ceiling():
     assert nice_ceiling(0) == 1
     assert nice_ceiling(3) == 5
     assert nice_ceiling(12) == 20
     assert nice_ceiling(230) == 250
-    assert nice_ceiling(0.4) == 1
+    assert nice_ceiling(0.4) == 0.5  # small values (disk MB/s) keep a readable axis
+    assert nice_ceiling(0.03) == 0.05
+    assert nice_ceiling(1) == 1
+
+
+def test_format_value_keeps_small_rates_readable():
+    assert format_value(1200, "MB") == "1,200 MB"
+    assert format_value(2.34) == "2.3"
+    assert format_value(0.042, "MB/s") == "0.04 MB/s"
+    assert format_value(0) == "0"
+
+
+def test_axis_labels_are_exact():
+    assert axis_labels(5) == ["0", "1.25", "2.50", "3.75", "5.00"]
+    assert axis_labels(4) == ["0", "1", "2", "3", "4"]
+    assert axis_labels(5000) == ["0", "1,250", "2,500", "3,750", "5,000"]
+    assert axis_labels(0.5) == ["0", "0.125", "0.250", "0.375", "0.500"]

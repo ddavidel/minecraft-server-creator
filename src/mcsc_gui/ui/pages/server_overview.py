@@ -66,20 +66,31 @@ class ServerOverviewPage(ServerPage):
         p = TOKENS.palette
 
         # ------------------------------------------------------- resources
+        # Every tile opens the saved history too
+        self.history_button = button(_("History"), "trend", variant="ghost")
+        self.history_button.setToolTip(_("Stats history"))
+        self.history_button.clicked.connect(self.show_history)
+        self.body.addLayout(_card_title(_("LIVE STATS"), self.history_button))
         stats = QGridLayout()
         stats.setSpacing(s.md)
-        self.ram_tile = StatTile("donut_large", _("RAM usage"), "MB", p.accent, row=True)
-        self.cpu_tile = StatTile("memory", _("CPU usage"), "%", p.info, row=True)
-        self.read_tile = StatTile("disk_read", _("Disk read"), "MB/s", p.warning, row=True)
-        self.write_tile = StatTile("disk_write", _("Disk write"), "MB/s", p.dirt, row=True)
-        self.players_tile = StatTile("players", _("Players"), color=p.text_muted, row=True)
+        self.ram_tile = StatTile("donut_large", _("RAM usage"), "MB", p.accent, row=True,
+                                 clickable=True)
+        self.cpu_tile = StatTile("memory", _("CPU usage"), "%", p.info, row=True,
+                                 clickable=True)
+        self.read_tile = StatTile("disk_read", _("Disk read"), "MB/s", p.warning, row=True,
+                                  clickable=True)
+        self.write_tile = StatTile("disk_write", _("Disk write"), "MB/s", p.dirt, row=True,
+                                   clickable=True)
+        self.players_tile = StatTile("players", _("Players"), color=p.text_muted, row=True,
+                                     clickable=True)
+        for tile in (self.players_tile, self.ram_tile, self.cpu_tile, self.read_tile,
+                     self.write_tile):
+            tile.setToolTip(_("Stats history"))
+            tile.clicked.connect(self.show_history)
         for column, tile in enumerate((self.players_tile, self.ram_tile, self.cpu_tile,
                                        self.read_tile, self.write_tile)):
             stats.addWidget(tile, 0, column)
             stats.setColumnStretch(column, 1)
-        self.history_button = icon_button("trend", _("Stats history"))
-        self.history_button.clicked.connect(self.show_history)
-        stats.addWidget(self.history_button, 0, 5, Qt.AlignmentFlag.AlignVCenter)
         self.body.addLayout(stats)
 
         content = QHBoxLayout()
