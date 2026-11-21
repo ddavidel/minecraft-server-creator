@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QContextMenuEvent, QKeyEvent
 from PySide6.QtWidgets import QHBoxLayout, QMenu, QWidget
@@ -10,11 +12,15 @@ from mcsc import MinecraftServer
 
 from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core.translations import translate as _
+from mcsc_gui.ui.theme.icons import ICON_SIZE, icon
 from mcsc_gui.ui.theme.tokens import TOKENS
 from mcsc_gui.ui.widgets.card import Card
 from mcsc_gui.ui.widgets.common import button, label
 from mcsc_gui.ui.widgets.context_menu import ContextMenu
 from mcsc_gui.ui.widgets.status_badge import StatusBadge
+
+
+logger = logging.getLogger(__name__)
 
 
 class ServerCard(Card):
@@ -39,6 +45,11 @@ class ServerCard(Card):
         self.name_label = label("", "title")
         self.name_label.setTextFormat(Qt.TextFormat.PlainText)
         top.addWidget(self.name_label, 1)
+        self.auto_start_icon = label()
+        self.auto_start_icon.setPixmap(
+            icon("auto_start", TOKENS.palette.text_muted).pixmap(ICON_SIZE))
+        self.auto_start_icon.setToolTip(_("Starts automatically when the app opens"))
+        top.addWidget(self.auto_start_icon, 0, Qt.AlignmentFlag.AlignVCenter)
         self.badge = StatusBadge(server.state)
         top.addWidget(self.badge, 0, Qt.AlignmentFlag.AlignTop)
         self.layout_.addLayout(top)
@@ -70,6 +81,7 @@ class ServerCard(Card):
         )
         self.badge.set_state(self.server.state)
         self.badge.set_activity(sm.activity_label(self.server))
+        self.auto_start_icon.setVisible(sm.server_auto_start(self.server))
         self.start_button.setEnabled(sm.can_start(self.server))
         self.stop_button.setEnabled(sm.can_stop(self.server))
         self.setAccessibleName(f"{config.name}, {self.badge.text}")
@@ -85,6 +97,10 @@ class ServerCard(Card):
         edit.triggered.connect(lambda: self.edit_requested.emit(server_id))
         clone = menu.add_action(_("Clone"), "content_copy")
         clone.triggered.connect(lambda: self.clone_requested.emit(server_id))
+        auto_start = menu.add_action(_("Start when the app opens"), "auto_start")
+        auto_start.setCheckable(True)
+        auto_start.setChecked(sm.server_auto_start(self.server))
+        auto_start.toggled.connect(self.set_auto_start)
         menu.addSeparator()
         delete = menu.add_danger_action(_("Delete"), "delete")
         delete.triggered.connect(lambda: self.delete_requested.emit(server_id))
@@ -93,6 +109,13 @@ class ServerCard(Card):
             action.setEnabled(reason is None)
             action.setToolTip(reason or "")
         return menu
+
+    def set_auto_start(self, enabled: bool) -> None:
+        """Turn auto start on/off from the menu (the card refreshes on server_updated)."""
+        try:
+            sm.set_server_auto_start(self.server, enabled)
+        except OSError:
+            logger.exception("Can't save the auto start preference")
 
     @property
     def menu(self) -> QMenu | None:

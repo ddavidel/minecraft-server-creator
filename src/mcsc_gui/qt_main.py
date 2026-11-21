@@ -2,8 +2,12 @@
 Bootstrap of the Qt (PySide6) desktop app.
 
 Order: logging -> QApplication -> single instance -> theme -> servers registry
-(+ legacy migration) -> asyncio bridge -> events -> window -> background work
-(versions preload, telemetry, update check) -> event loop -> safe shutdown.
+(+ legacy migration) -> asyncio bridge -> events -> window + tray icon ->
+background work (autostart entry, versions preload, auto start servers,
+telemetry, update check) -> event loop -> safe shutdown.
+
+``--background`` (used by the login autostart entry) starts the app in the
+tray without showing the window.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from mcsc_gui.config import settings as mcssettings  # noqa: E402
 from mcsc_gui.core import server_manager as sm  # noqa: E402
+from mcsc_gui.core import autostart  # noqa: E402
 from mcsc_gui.core.async_bridge import get_bridge  # noqa: E402
 from mcsc_gui.core.logger import setup_logging  # noqa: E402
 from mcsc_gui.core.migration import migrate_legacy  # noqa: E402
@@ -42,6 +47,7 @@ from mcsc_gui.ui.invoke import install_invoker, invoke_in_ui  # noqa: E402
 from mcsc_gui.ui.main_window import APP_TITLE, MainWindow  # noqa: E402
 from mcsc_gui.ui.server_events import ServerEvents  # noqa: E402
 from mcsc_gui.ui.single_instance import SingleInstance  # noqa: E402
+from mcsc_gui.ui.tray import TrayIcon, TrayNotifier, window_visible  # noqa: E402
 from mcsc_gui.ui.theme.fonts import load_fonts  # noqa: E402
 from mcsc_gui.ui.theme.qss import build_stylesheet  # noqa: E402
 from mcsc_gui.update import get_current_version  # noqa: E402
@@ -91,11 +97,27 @@ def _install_safety_net(bridge, window: MainWindow) -> QTimer:
     return wake
 
 
+def _sync_autostart() -> None:
+    """Align the login autostart entry with the setting (never fails)."""
+    try:
+        autostart.sync(UserSettings())
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("Can't update the autostart entry")
+
+
+async def _auto_start_servers() -> None:
+    try:
+        await sm.auto_start_servers()
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("Auto start of the servers failed")
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv if argv is None else argv)
     debug = "--debug" in argv or mcssettings.DEBUG
+    background = autostart.BACKGROUND_ARG in argv
     setup_logging(debug=debug)
-    logger.info("Starting Minecraft Server Creator (Qt)")
+    logger.info("Starting Minecraft Server Creator (Qt)%s", " in the background" if background else "")
     set_windows_app_id()  # before any window: taskbar shows MCSC, not Python
     hide_child_consoles()  # pythonw: java servers must not open a terminal
 
@@ -133,17 +155,30 @@ def main(argv: list[str] | None = None) -> int:
     native = bool(UserSettings().user_settings.get("native_title_bar", DEFAULT_NATIVE_TITLE_BAR))
     window = MainWindow(events, bridge, native_title_bar=native)
     tasks.configure(bridge, window.toasts)
-    set_notifier(tasks.ToastNotifier(window.toasts))
+    tray = TrayIcon(events) if TrayIcon.available() else None
+    if tray is not None:
+        window.attach_tray(tray)
+        tray.show()
+        set_notifier(TrayNotifier(window.toasts, tray, window_visible(window)))
+    else:
+        set_notifier(tasks.ToastNotifier(window.toasts))
+    # Hidden in the tray, the window isn't the "last window": don't quit when it hides
+    app.setQuitOnLastWindowClosed(tray is None)
     instance.activated.connect(window.bring_to_front)
     wake = _install_safety_net(bridge, window)
 
-    window.show()
+    if not background:
+        window.show()
+    elif tray is None:
+        window.showMinimized()  # no tray to start in
+    window.schedule_startup_prompts()  # What's New or shortcut prompt, once visible
 
     # Background work: never blocks the window from showing
+    bridge.call(_sync_autostart)
     bridge.call(sm.preload_versions)
+    window.auto_start_future = bridge.submit(_auto_start_servers())
     bridge.call(_send_app_start)
     window.start_update_check()
-    QTimer.singleShot(800, window.run_startup_prompts)  # What's New or shortcut prompt
 
     code = app.exec()
 
@@ -151,6 +186,8 @@ def main(argv: list[str] | None = None) -> int:
     emergency_stop(bridge)  # no-op after a normal close
     bridge.shutdown()
     set_notifier(None)
+    if tray is not None:
+        tray.hide()
     instance.release()
     logger.info("Bye")
     return code

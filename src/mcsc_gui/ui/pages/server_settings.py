@@ -1,4 +1,4 @@
-"""Server settings: name, RAM and automatic backups; export, clone and delete."""
+"""Server settings: name, RAM, automatic backups and auto start; export, clone and delete."""
 
 from __future__ import annotations
 
@@ -80,6 +80,11 @@ class ServerSettingsPage(ServerPage):
         self.auto_backup.setCurrentIndex(max(0, self.auto_backup.findData(self._saved_policy)))
         general.layout_.addWidget(Field(_("Automatic backups"), self.auto_backup))
 
+        self.auto_start = QCheckBox(_("Start automatically when the app opens"))
+        self._saved_auto_start = sm.server_auto_start(server)
+        self.auto_start.setChecked(self._saved_auto_start)
+        general.layout_.addWidget(self.auto_start)
+
         save_row = QHBoxLayout()
         save_row.addWidget(label(_("RAM changes apply at the next start."), "muted"), 1)
         self.save_button = button(_("Save"), "save", variant="primary")
@@ -150,13 +155,16 @@ class ServerSettingsPage(ServerPage):
         if error:
             return
         policy = self.auto_backup.currentData()
+        auto_start = self.auto_start.isChecked()
 
         def done(_result) -> None:
             self._saved_policy = policy
+            self._saved_auto_start = auto_start
 
         run_blocking(
             sm.update_server, self.server, self.name.widget.text(), self.ram.value(),
             policy if policy != self._saved_policy else None,
+            auto_start if auto_start != self._saved_auto_start else None,
             progress=_("Saving settings of server '{name}'", name=self.server.name),
             success=_("Settings saved!"),
             disable=[self.save_button],

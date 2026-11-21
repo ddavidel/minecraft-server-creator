@@ -1,11 +1,14 @@
-"""App settings dialog (US6): version, language, native title bar, automatic backups."""
+"""App settings dialog (US6): version, language, title bar, startup and tray, automatic backups."""
 
 from __future__ import annotations
+
+import platform
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
+    QSystemTrayIcon,
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -16,11 +19,12 @@ from PySide6.QtWidgets import (
 
 from mcsc_gui.config import settings as mcssettings
 from mcsc_gui.core import server_manager as sm
-from mcsc_gui.core import shortcuts
+from mcsc_gui.core import autostart, shortcuts
 from mcsc_gui.core.translations import languages_map
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.core.user_settings import (
     AUTO_BACKUP_POLICIES,
+    DEFAULT_CLOSE_TO_TRAY,
     DEFAULT_AUTO_BACKUP,
     DEFAULT_BACKUP_RETENTION,
     DEFAULT_NATIVE_TITLE_BAR,
@@ -71,6 +75,34 @@ class AppSettingsDialog(OverlayDialog):
         self.native_title_bar = QCheckBox(_("Use the system title bar"))
         self.native_title_bar.setChecked(bool(current.get("native_title_bar", DEFAULT_NATIVE_TITLE_BAR)))
         self.body.addWidget(self.native_title_bar)
+
+        # Startup: applied as soon as the settings are saved (no restart)
+        self.start_with_os = None
+        self._autostart_enabled = False
+        if autostart.is_supported():
+            # The real OS entry, compared on save to add or remove it
+            self._autostart_enabled = autostart.is_enabled()
+            # On by default (setting not saved yet); off if turned off from Task Manager
+            wanted = bool(current.get(autostart.SETTING, autostart.DEFAULT_ENABLED))
+            self.start_with_os = QCheckBox(start_with_os_text())
+            self.start_with_os.setChecked(
+                self._autostart_enabled or (wanted and not autostart.is_disabled_by_user()))
+            self.start_with_os.setToolTip(
+                _("Starts in the system tray, without opening the window."))
+            self.body.addWidget(self.start_with_os)
+            if autostart.is_disabled_by_user():
+                self.body.addWidget(label(
+                    _("Turned off from Task Manager: check the box to turn it back on."),
+                    "muted", wrap=True))
+        self.close_to_tray = None
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.close_to_tray = QCheckBox(
+                _("Keep running in the system tray when the window is closed"))
+            self.close_to_tray.setChecked(
+                bool(current.get("close_to_tray", DEFAULT_CLOSE_TO_TRAY)))
+            self.close_to_tray.setToolTip(
+                _("The servers keep running. Quit from the tray icon's menu."))
+            self.body.addWidget(self.close_to_tray)
 
         backups = QHBoxLayout()
         backups.setSpacing(TOKENS.spacing.md)
@@ -133,12 +165,25 @@ class AppSettingsDialog(OverlayDialog):
         create_shortcuts(settings=self._settings, disable=[self.shortcut_button])
 
     def values(self) -> dict:
-        return {
+        values = {
             "language": self.language.currentData(),
             "native_title_bar": self.native_title_bar.isChecked(),
             "auto_backup": self.auto_backup.currentData(),
             "backup_retention": self.backup_retention.value(),
         }
+        if self.start_with_os is not None:
+            values["start_with_os"] = self.start_with_os.isChecked()
+        if self.close_to_tray is not None:
+            values["close_to_tray"] = self.close_to_tray.isChecked()
+        return values
+
+    def _save(self, **values) -> None:
+        """Save the settings, then add or remove the login autostart entry if it changed."""
+        self._settings.update_settings(**values)
+        enabled = values.get("start_with_os")
+        if enabled is not None and enabled != self._autostart_enabled:
+            autostart.set_enabled(enabled)
+            self._autostart_enabled = enabled
 
     def submit(self) -> None:
         values = self.values()
@@ -148,6 +193,12 @@ class AppSettingsDialog(OverlayDialog):
             run_task(send_event_async("settings_change", details=details), show_errors=False)
             self.accept()
 
-        run_blocking(self._settings.update_settings, progress=_("Saving"),
+        run_blocking(self._save, progress=_("Saving"),
                      success=_("Settings saved") + ". " + _("Restart the app to apply them."),
                      disable=[self.save_button, self.cancel_button, self.changelog_button], on_success=saved, **values)
+
+
+def start_with_os_text() -> str:
+    if platform.system() == "Windows":
+        return _("Start MCSC when Windows starts")
+    return _("Start MCSC when you log in")

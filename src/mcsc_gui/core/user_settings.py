@@ -17,9 +17,12 @@ USER_SETTINGS_PATH = os.path.join(user_data_dir("mcsc"), "config", "user_setting
 # auto_backup: app-wide automatic backup policy (see AUTO_BACKUP_POLICIES)
 # backup_retention: automatic backups kept per server (0 = unlimited)
 # last_seen_version: the last version whose "What's New" notes were shown
+# start_with_os: start the app (in the tray) at login; see mcsc_gui.core.autostart
+# close_to_tray: closing the window hides it in the system tray instead of quitting
+# tray_hint_shown: the "still running in the tray" notification was already shown once
 KNOWN_SETTINGS = [
     "language", "native_title_bar", "shortcut_prompt_shown", "auto_backup", "backup_retention",
-    "last_seen_version",
+    "last_seen_version", "start_with_os", "close_to_tray", "tray_hint_shown",
 ]
 
 # Use the OS title bar unless the user opts into the custom one
@@ -29,6 +32,9 @@ DEFAULT_NATIVE_TITLE_BAR = True
 AUTO_BACKUP_POLICIES = ("never", "on_start", "on_stop")
 DEFAULT_AUTO_BACKUP = "never"
 DEFAULT_BACKUP_RETENTION = 5
+
+# Closing the window keeps the app (and its servers) running in the tray
+DEFAULT_CLOSE_TO_TRAY = True
 
 
 def _to_bool(value) -> bool:
@@ -65,6 +71,9 @@ TYPES_CONVERTION = {
     "auto_backup": _to_policy,
     "backup_retention": _to_retention,
     "last_seen_version": str,
+    "start_with_os": _to_bool,
+    "close_to_tray": _to_bool,
+    "tray_hint_shown": _to_bool,
 }
 
 

@@ -97,6 +97,11 @@ class ContextMenu(QMenu):
         self._danger_items[action] = item
         return action
 
+    def clear(self) -> None:
+        """Remove every action (the danger rows go with them)."""
+        self._danger_items.clear()
+        super().clear()
+
     def danger_item(self, action: QAction) -> _DangerItem | None:
         return self._danger_items.get(action)
 
