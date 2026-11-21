@@ -1,4 +1,4 @@
-"""Server settings: name, RAM and automatic backups; export and delete."""
+"""Server settings: name, RAM and automatic backups; export, clone and delete."""
 
 from __future__ import annotations
 
@@ -101,6 +101,16 @@ class ServerSettingsPage(ServerPage):
         move.layout_.addWidget(self.export_button, 0, Qt.AlignmentFlag.AlignLeft)
         side.addWidget(move)
 
+        copy = Card(padding=s.lg)
+        copy.layout_.addWidget(label(_("CLONE THE SERVER"), "overline"))
+        copy.layout_.addWidget(label(
+            _("Creates a new server with a copy of this one's files and settings."),
+            "muted", wrap=True))
+        self.clone_button = button(_("Clone server"), "content_copy")
+        self.clone_button.clicked.connect(lambda: self.clone_requested.emit(self.server.id))
+        copy.layout_.addWidget(self.clone_button, 0, Qt.AlignmentFlag.AlignLeft)
+        side.addWidget(copy)
+
         danger = Card(padding=s.lg)
         danger.setObjectName("DangerZone")
         danger.setStyleSheet(
@@ -130,6 +140,9 @@ class ServerSettingsPage(ServerPage):
         reason = backup_actions.backup_block_reason(self.server)
         self.export_button.setEnabled(reason is None)
         self.export_button.setToolTip(reason or "")
+        clone_reason = sm.clone_block_reason(self.server)
+        self.clone_button.setEnabled(clone_reason is None)
+        self.clone_button.setToolTip(clone_reason or "")
 
     def save(self) -> None:
         error = validate_name(self.name.widget.text())

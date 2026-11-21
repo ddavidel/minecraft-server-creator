@@ -164,7 +164,7 @@ def test_server_prefs_persist_and_remove(tmp_path):
 
 def test_error_messages_for_backup_errors():
     assert sm.error_message(InsufficientDiskSpaceError("x")) == \
-        "Not enough disk space for the backup"
+        "Not enough disk space"
     assert sm.error_message(UnsupportedArchiveVersionError("x")) == \
         "This archive was created by a newer version of MCSC"
     assert sm.error_message(InvalidArchiveError("x")) == \

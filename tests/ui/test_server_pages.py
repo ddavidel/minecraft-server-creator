@@ -363,6 +363,22 @@ def test_settings_page_export_and_delete(qtbot, bridge, server, events):
         page.dispose()
 
 
+def test_settings_page_clone(qtbot, server, events):
+    page = open_page(qtbot, ServerSettingsPage(server, events))
+    try:
+        assert page.clone_button.isEnabled()
+        with qtbot.waitSignal(page.clone_requested) as blocker:
+            page.clone_button.click()
+        assert blocker.args == [server.id]
+
+        server._state = ServerState.RUNNING  # pylint: disable=protected-access
+        page.refresh()
+        assert not page.clone_button.isEnabled()
+        assert page.clone_button.toolTip() == "Stop the server to clone it"
+    finally:
+        page.dispose()
+
+
 def test_page_title_follows_renames(qtbot, server, events):
     page = open_page(qtbot, ServerBackupsPage(server, events, backups=lambda _s: []))
     try:
@@ -409,5 +425,43 @@ def test_main_window_sidebar_follows_server_pages(qtbot, bridge, tmp_path, make_
             window.sidebar.back_button.click()
             assert window.navigator.current_route == Route(DASHBOARD)
             assert not window.sidebar.showing_server
+        finally:
+            events.close()
+
+
+def test_main_window_dashboard_menu_and_clone(qtbot, bridge, tmp_path, make_server, prefs):
+    from mcsc import ServerManager  # pylint: disable=import-outside-toplevel
+
+    from mcsc_gui.ui.dialogs.clone_server import CloneServerDialog  # pylint: disable=import-outside-toplevel
+    from mcsc_gui.ui.dialogs.delete_server import DeleteServerDialog  # pylint: disable=import-outside-toplevel
+    from mcsc_gui.ui.main_window import MainWindow  # pylint: disable=import-outside-toplevel
+
+    manager = ServerManager(tmp_path / "servers", tmp_path / "servers.json",
+                            backups_dir=tmp_path / "backups")
+    server = manager.register(make_server().config)
+    events = ServerEvents(track_registry=False)
+    events.attach(server)
+    with mock.patch.object(sm, "manager", manager):
+        window = MainWindow(events, bridge, native_title_bar=True)
+        qtbot.addWidget(window)
+        try:
+            window.dashboard.edit_server.emit(server.id)
+            assert window.navigator.current_route == Route(SERVER_SETTINGS, (server.id,))
+            window.navigator.to_dashboard()
+
+            window.dashboard.delete_server.emit(server.id)
+            dialogs = window.findChildren(DeleteServerDialog)
+            assert len(dialogs) == 1 and dialogs[0].server is server
+            dialogs[0].reject()
+
+            window.dashboard.clone_server.emit(server.id)
+            dialogs = window.findChildren(CloneServerDialog)
+            assert len(dialogs) == 1 and dialogs[0].server is server
+            dialog = dialogs[0]
+            # The source disappears: the dialog closes
+            with qtbot.waitSignal(dialog.closed, timeout=2000):
+                events.server_removed.emit(server.id)
+
+            window.dashboard.clone_server.emit("missing")  # ignored
         finally:
             events.close()

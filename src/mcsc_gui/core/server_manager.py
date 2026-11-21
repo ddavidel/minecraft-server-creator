@@ -9,7 +9,7 @@ errors, user notifications and the automatic backup policy.
 It must not import any UI toolkit: errors are reported through
 :func:`mcsc_gui.core.notifier.get_notifier` and registry changes through the
 ``on_server_added`` / ``on_server_removed`` / ``on_server_updated`` callbacks;
-backups through ``on_backups_changed`` and running operations (backup, restore,
+backups through ``on_backups_changed`` and running operations (backup, restore, clone,
 export...) through ``on_server_busy_changed``.
 Callbacks may run in the asyncio bridge thread.
 
@@ -132,7 +132,14 @@ OPERATION_LABELS: dict[str, str] = {
     "export": "Exporting…",
     "delete": "Deleting…",
     "delete backup": "Deleting…",
+    "clone": "Cloning…",
 }
+
+
+
+class CloneNotSupportedError(InvalidServerFolderError):
+    """The server's folder can't be copied into a new server (e.g. legacy Forge layout)."""
+
 
 # Most specific first: the first matching type wins.
 ERROR_MESSAGES: tuple[tuple[type[MCSCError], str], ...] = (
@@ -146,10 +153,11 @@ ERROR_MESSAGES: tuple[tuple[type[MCSCError], str], ...] = (
     (VersionNotFoundError, "Version URL not found"),
     (DownloadError, "Download failed. Check your internet connection"),
     (InstallError, "Server installation failed"),
-    (InsufficientDiskSpaceError, "Not enough disk space for the backup"),
+    (InsufficientDiskSpaceError, "Not enough disk space"),
     (UnsupportedArchiveVersionError, "This archive was created by a newer version of MCSC"),
     (InvalidArchiveError, "This file is not a valid MCSC backup or export"),
     (IncompatibleBackupError, "This backup belongs to a different server type"),
+    (CloneNotSupportedError, "This server can't be cloned"),
     (InvalidServerFolderError, "This folder doesn't look like a Minecraft server"),
     (BackupError, "The backup operation failed"),
 )
@@ -239,7 +247,7 @@ def server_operation(server: MinecraftServer) -> str | None:
 
 
 def is_busy(server: MinecraftServer) -> bool:
-    """True while a backup, restore, export or delete runs on the server."""
+    """True while a backup, restore, export, clone or delete runs on the server."""
     return server_operation(server) is not None
 
 
@@ -272,6 +280,34 @@ def can_stop(server: MinecraftServer) -> bool:
 def can_backup(server: MinecraftServer) -> bool:
     """True when backup, export and restore are possible (stopped and idle server)."""
     return server.state is ServerState.STOPPED and not is_busy(server)
+
+
+def can_clone(server: MinecraftServer) -> bool:
+    """True when the server can be cloned (stopped and idle)."""
+    return server.state is ServerState.STOPPED and not is_busy(server)
+
+
+def can_delete(server: MinecraftServer) -> bool:
+    """True when the server can be deleted (stopped and idle)."""
+    return server.state is ServerState.STOPPED and not is_busy(server)
+
+
+def clone_block_reason(server: MinecraftServer) -> str | None:
+    """Why the server can't be cloned now (translated), ``None`` if it can."""
+    if is_busy(server):
+        return activity_label(server)
+    if not can_clone(server):
+        return _("Stop the server to clone it")
+    return None
+
+
+def delete_block_reason(server: MinecraftServer) -> str | None:
+    """Why the server can't be deleted now (translated), ``None`` if it can."""
+    if is_busy(server):
+        return activity_label(server)
+    if not can_delete(server):
+        return _("Stop the server to delete it")
+    return None
 
 
 def backup_kind_label(kind: BackupKind | str) -> str:
@@ -454,8 +490,13 @@ async def start_server(server: MinecraftServer) -> None:
     """Start a server, notifying the user on failure.
 
     With the "on start" automatic backup policy the server is backed up first;
-    a failed backup is only a warning, the server starts anyway.
+    a failed backup is only a warning, the server starts anyway. A busy server
+    (backup, restore, clone...) is never started.
     """
+    operation = server_operation(server)
+    if operation is not None:
+        notify_error(ServerBusyError(f"Server {server.name!r} is busy ({operation} in progress)"))
+        return
     if not server.is_active and not is_busy(server) \
             and effective_backup_policy(server) == "on_start":
         await auto_backup(server)
@@ -722,6 +763,67 @@ async def import_server_folder(folder: str | os.PathLike[str], server_type: int 
     _attach(server)
     _fire(_added_callbacks, server)
     await _send_event("server_import", {**telemetry_details(server), "source": "folder"})
+    return server
+
+
+# -------------------------------------------------------------------- clone
+
+
+def suggest_clone_name(server: MinecraftServer) -> str:
+    """Default name of a copy of ``server``: its name made unique ("Survival (2)")."""
+    return manager.unique_name(server.name)
+
+
+def server_size(server: MinecraftServer) -> int:
+    """Bytes in the server folder (what a clone copies). Blocking, never raises."""
+    total = 0
+    stack = [server.server_dir]
+    while stack:
+        try:
+            with os.scandir(stack.pop()) as entries:
+                for entry in entries:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            stack.append(Path(entry.path))
+                        elif entry.is_file(follow_symlinks=False):
+                            total += entry.stat(follow_symlinks=False).st_size
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return total
+
+
+async def clone_server(source: MinecraftServer, name: str, ram_gb: int,
+                       accept_eula: bool) -> MinecraftServer:
+    """Copy a stopped server (files and settings, not its backups) into a new server.
+
+    The copy has a new id and folder and keeps type, version, port, address,
+    Java and JVM arguments and the automatic backup override of ``source``.
+    ``source`` is busy ("clone") for the whole copy; on failure nothing is left
+    on disk or in the registry.
+    """
+    name = _check_name(name)
+    if source.state is not ServerState.STOPPED:
+        raise ServerRunningError(f"Can't clone server {source.name!r} while it's {source.state}")
+    config = source.config
+    with _operation(source, "clone"):
+        try:
+            server = await manager.import_folder_async(
+                source.server_dir, config.server_type, config.version,
+                name=name, ram_gb=int(ram_gb), accept_eula=accept_eula,
+                port=config.port, address=config.address,
+                java_path=config.java_path, jvm_args=list(config.jvm_args),
+            )
+        except InvalidServerFolderError as e:
+            raise CloneNotSupportedError(str(e)) from e
+    policy = server_backup_policy(source)
+    if policy != DEFAULT_POLICY:
+        set_server_backup_policy(server, policy)
+    logger.info(f"Cloned server {source.id} into {server.id}")
+    _attach(server)
+    _fire(_added_callbacks, server)
+    await _send_event("server_clone", {**telemetry_details(server), "source_uuid": source.id})
     return server
 
 

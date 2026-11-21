@@ -101,6 +101,7 @@ class ServerPage(QWidget):
     section_requested = Signal(str, str)  # server_id, section
     edit_file_requested = Signal(str, str)  # server_id, filename
     delete_requested = Signal(str)  # server_id
+    clone_requested = Signal(str)  # server_id
 
     def __init__(self, server: MinecraftServer, events: ServerEvents,
                  parent: QWidget | None = None) -> None:

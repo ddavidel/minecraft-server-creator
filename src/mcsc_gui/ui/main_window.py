@@ -29,6 +29,7 @@ from mcsc_gui.core.user_settings import UserSettings
 from mcsc_gui.telemetry import send_event_async
 from mcsc_gui.update import launch_updater
 from mcsc_gui.ui.dialogs.app_settings import AppSettingsDialog
+from mcsc_gui.ui.dialogs.clone_server import CloneServerDialog
 from mcsc_gui.ui.dialogs.confirm_quit import ConfirmQuitDialog, ShutdownDialog
 from mcsc_gui.ui.dialogs.create_server import CreateServerDialog
 from mcsc_gui.ui.dialogs.delete_server import DeleteServerDialog
@@ -143,6 +144,10 @@ class MainWindow(QMainWindow):
         self.dashboard.open_server.connect(self.navigator.to_server)
         self.dashboard.new_server_requested.connect(self.open_create_dialog)
         self.dashboard.import_server_requested.connect(self.open_import_dialog)
+        self.dashboard.edit_server.connect(
+            lambda server_id: self.navigator.to_section(server_id, SERVER_SETTINGS))
+        self.dashboard.clone_server.connect(self._clone_from_dashboard)
+        self.dashboard.delete_server.connect(self._delete_from_dashboard)
         self.sidebar.dashboard_clicked.connect(self.navigator.to_dashboard)
         self.sidebar.section_clicked.connect(self.navigator.to_section)
         for signal in (events.state_changed, events.server_updated, events.busy_changed):
@@ -176,6 +181,8 @@ class MainWindow(QMainWindow):
             page.edit_file_requested.connect(self.navigator.to_editor)
             page.section_requested.connect(self.navigator.to_section)
             page.delete_requested.connect(lambda _id, s=server: self.open_delete_dialog(s))
+            page.clone_requested.connect(
+                lambda _id, s=server: self.open_clone_dialog(s, open_copy=True))
             page.title_changed.connect(self._set_title)
             return page
         if route.kind == EDITOR:
@@ -235,6 +242,32 @@ class MainWindow(QMainWindow):
         dialog = DeleteServerDialog(self, server)
         dialog.deleted.connect(lambda _id: self.navigator.to_dashboard())
         self.open_dialog(dialog)
+
+    def open_clone_dialog(self, server, *, open_copy: bool = False) -> None:
+        """Clone ``server``; with ``open_copy`` the new server's page opens at the end."""
+        if self._shutting_down:
+            return
+        dialog = CloneServerDialog(self, server)
+        if open_copy:
+            dialog.cloned.connect(self.navigator.to_server)
+
+        def removed(server_id: str) -> None:
+            if server_id == server.id and not dialog.busy:
+                dialog.reject()
+
+        self.events.server_removed.connect(removed)
+        dialog.closed.connect(lambda: self.events.server_removed.disconnect(removed))
+        self.open_dialog(dialog)
+
+    def _clone_from_dashboard(self, server_id: str) -> None:
+        server = sm.find_server(server_id)
+        if server is not None:
+            self.open_clone_dialog(server)
+
+    def _delete_from_dashboard(self, server_id: str) -> None:
+        server = sm.find_server(server_id)
+        if server is not None:
+            self.open_delete_dialog(server)
 
     def open_settings_dialog(self) -> None:
         self.open_dialog(AppSettingsDialog(self))

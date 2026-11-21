@@ -185,3 +185,102 @@ def test_update_dialog_requests_update(qtbot, host):
     with qtbot.waitSignal(dialog.update_requested, timeout=1000):
         dialog.update_button.click()
     assert dialog.result is True
+
+
+# -------------------------------------------------------------------- clone
+
+
+def open_clone(qtbot, host, server, size=3 * 1024 * 1024):
+    from mcsc_gui.ui.dialogs.clone_server import CloneServerDialog  # pylint: disable=import-outside-toplevel
+
+    dialog = CloneServerDialog(host, server, measure=lambda _s: size)
+    dialog.open()
+    qtbot.waitUntil(lambda: "3.0 MB" in dialog.size_label.text(), timeout=2000)
+    return dialog
+
+
+def test_clone_dialog_defaults(qtbot, host, bridge, registry, make_server):
+    config = make_server(name="Survival").config
+    config.ram_gb = 3
+    config.port = 25570
+    server = registry.register(config)
+    dialog = open_clone(qtbot, host, server)
+    assert dialog.name.widget.text() == "Survival (2)"
+    assert dialog.ram.value() == 3
+    assert not dialog.eula.isChecked() and not dialog.clone_button.isEnabled()
+    assert "25570" in dialog.port_warning.text() and "Survival" in dialog.port_warning.text()
+    assert dialog.size_label.text() == "Size to copy: 3.0 MB"
+
+
+def test_clone_dialog_validates_and_submits(qtbot, host, bridge, registry, make_server):
+    server = registry.register(make_server(name="Survival").config)
+    dialog = open_clone(qtbot, host, server)
+    dialog.eula.setChecked(True)
+    assert dialog.clone_button.isEnabled()
+
+    with mock.patch.object(sm, "clone_server") as clone:
+        dialog.name.widget.setText("  ")
+        dialog.submit()
+        assert dialog.name.error == "Server name can't be empty"
+        clone.assert_not_called()
+
+    dialog.name.widget.setText("Creative")
+
+    async def failing(source, **kwargs):
+        raise OSError("disk error")
+
+    with mock.patch.object(sm, "clone_server", new=failing):
+        dialog.submit()
+        qtbot.waitUntil(lambda: not dialog.busy, timeout=2000)
+    assert dialog.result is None  # still open with the entered data
+    assert dialog.name.widget.text() == "Creative"
+    assert dialog.clone_button.isEnabled() and dialog.name.widget.isEnabled()
+
+    created = make_server("copy")
+
+    async def ok(source, **kwargs):
+        assert source is server
+        assert kwargs == {"name": "Creative", "ram_gb": dialog.ram.value(), "accept_eula": True}
+        return created
+
+    with mock.patch.object(sm, "clone_server", new=ok):
+        with qtbot.waitSignal(dialog.cloned, timeout=2000) as blocker:
+            dialog.submit()
+    assert blocker.args == ["copy"]
+    assert dialog.result is True
+
+
+def test_clone_dialog_hides_the_size_if_it_cant_be_measured(qtbot, host, bridge, registry,
+                                                            make_server):
+    from mcsc_gui.ui.dialogs.clone_server import CloneServerDialog  # pylint: disable=import-outside-toplevel
+
+    server = registry.register(make_server().config)
+
+    def broken(_server):
+        raise OSError("x")
+
+    dialog = CloneServerDialog(host, server, measure=broken)
+    dialog.open()
+    qtbot.waitUntil(lambda: dialog.size_label.isHidden(), timeout=2000)
+
+
+def test_clone_dialog_end_to_end(qtbot, host, bridge, registry, make_server):
+    server = registry.register(make_server(name="Survival").config)
+    (server.path / "server.jar").write_bytes(b"jar")
+    dialog = open_clone(qtbot, host, server)
+    dialog.eula.setChecked(True)
+    with qtbot.waitSignal(dialog.cloned, timeout=5000) as blocker:
+        dialog.submit()
+    clone = registry.find(blocker.args[0])
+    assert clone is not None and clone.name == "Survival (2)"
+    assert (clone.path / "server.jar").read_bytes() == b"jar"
+    assert not sm.is_busy(server)
+
+
+def test_format_size():
+    from mcsc_gui.ui.dialogs.clone_server import format_size  # pylint: disable=import-outside-toplevel
+
+    assert format_size(512) == "512 B"
+    assert format_size(1536) == "1.5 KB"
+    assert format_size(5 * 1024 ** 3) == "5.0 GB"
+    assert format_size(3 * 1024 ** 4) == "3072.0 GB"
