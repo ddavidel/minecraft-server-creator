@@ -255,4 +255,11 @@ translations = {
     "The copy uses port {port}, like '{name}': don't run them at the same time.": "La copia usa la porta {port}, come '{name}': non avviarli contemporaneamente.",
     "CLONE THE SERVER": "CLONA IL SERVER",
     "Creates a new server with a copy of this one's files and settings.": "Crea un nuovo server con una copia dei file e delle impostazioni di questo.",
+    # What's New / changelog
+    "What's New": "Novità",
+    "Changelog": "Changelog",
+    "Got it": "Ho capito",
+    "Version {version}": "Versione {version}",
+    "No release notes available": "Nessuna nota di rilascio disponibile",
+    "All releases on GitHub": "Tutte le versioni su GitHub",
 }

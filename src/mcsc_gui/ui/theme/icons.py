@@ -52,6 +52,8 @@ ICON_MAP: dict[str, str] = {
     "edit": "pencil-outline",
     "content_copy": "content-copy",
     "shortcut": "monitor-arrow-down",
+    "open_in_new": "open-in-new",
+    "history": "history",
 }
 
 ICON_SIZE = QSize(18, 18)

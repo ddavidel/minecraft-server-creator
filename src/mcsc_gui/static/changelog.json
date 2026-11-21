@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "releases": [
+    {
+      "version": "3.1.0",
+      "date": "2026-11-21",
+      "title": {
+        "en": "Backups, cloning and a new look",
+        "it": "Backup, clonazione e un nuovo look"
+      },
+      "highlights": {
+        "en": [
+          "Back up your servers manually or automatically when they start or stop, and restore them in a click",
+          "Export a server to a single .zip and import it on another PC",
+          "Clone a server from the dashboard context menu",
+          "Redesigned server pages, with a sidebar for overview, console, configuration, backups and settings",
+          "See what's new after each update, and the full changelog from the App Settings"
+        ],
+        "it": [
+          "Esegui il backup dei server a mano o in automatico all'avvio o allo spegnimento, e ripristinali con un clic",
+          "Esporta un server in un unico .zip e importalo su un altro PC",
+          "Clona un server dal menu contestuale della dashboard",
+          "Pagine dei server ridisegnate, con una barra laterale per panoramica, terminale, configurazione, backup e impostazioni",
+          "Scopri le novità dopo ogni aggiornamento e consulta il changelog completo dalle Impostazioni dell'app"
+        ]
+      }
+    },
+    {
+      "version": "3.0.1",
+      "date": "2026-11-20",
+      "highlights": {
+        "en": [
+          "The system title bar is now the default (you can switch back in the App Settings)",
+          "Fixed the window title and some text that wasn't displayed correctly"
+        ],
+        "it": [
+          "La barra del titolo di sistema è ora quella predefinita (puoi cambiarla nelle Impostazioni dell'app)",
+          "Corretti il titolo della finestra e alcuni testi non visualizzati correttamente"
+        ]
+      }
+    },
+    {
+      "version": "3.0.0",
+      "date": "2026-11-19",
+      "title": {
+        "en": "A brand new app",
+        "it": "Un'app tutta nuova"
+      },
+      "highlights": {
+        "en": [
+          "Rebuilt from scratch as a native desktop app: faster, lighter and with a new design",
+          "Live server console, resource usage and status on the dashboard",
+          "Windows installer and desktop shortcut"
+        ],
+        "it": [
+          "Ricostruita da zero come app desktop nativa: più veloce, più leggera e con un nuovo design",
+          "Terminale del server in tempo reale, consumo di risorse e stato nella dashboard",
+          "Installer per Windows e collegamento sul desktop"
+        ]
+      }
+    }
+  ]
+}

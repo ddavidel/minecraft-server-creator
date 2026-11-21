@@ -16,8 +16,10 @@ USER_SETTINGS_PATH = os.path.join(user_data_dir("mcsc"), "config", "user_setting
 # shortcut_prompt_shown: the "add a desktop shortcut?" popup was already shown once
 # auto_backup: app-wide automatic backup policy (see AUTO_BACKUP_POLICIES)
 # backup_retention: automatic backups kept per server (0 = unlimited)
+# last_seen_version: the last version whose "What's New" notes were shown
 KNOWN_SETTINGS = [
     "language", "native_title_bar", "shortcut_prompt_shown", "auto_backup", "backup_retention",
+    "last_seen_version",
 ]
 
 # Use the OS title bar unless the user opts into the custom one
@@ -62,6 +64,7 @@ TYPES_CONVERTION = {
     "shortcut_prompt_shown": _to_bool,
     "auto_backup": _to_policy,
     "backup_retention": _to_retention,
+    "last_seen_version": str,
 }
 
 

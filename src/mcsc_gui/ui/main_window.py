@@ -24,10 +24,11 @@ from shiboken6 import isValid
 from mcsc_gui.config import settings as mcssettings
 from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core.async_bridge import AsyncBridge
+from mcsc_gui.core.changelog import load_changelog
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.core.user_settings import UserSettings
 from mcsc_gui.telemetry import send_event_async
-from mcsc_gui.update import launch_updater
+from mcsc_gui.update import get_current_version, launch_updater
 from mcsc_gui.ui.dialogs.app_settings import AppSettingsDialog
 from mcsc_gui.ui.dialogs.clone_server import CloneServerDialog
 from mcsc_gui.ui.dialogs.confirm_quit import ConfirmQuitDialog, ShutdownDialog
@@ -36,6 +37,7 @@ from mcsc_gui.ui.dialogs.delete_server import DeleteServerDialog
 from mcsc_gui.ui.dialogs.import_server import ImportServerDialog
 from mcsc_gui.ui.dialogs.shortcut import ShortcutPromptDialog, mark_prompt_shown, should_prompt
 from mcsc_gui.ui.dialogs.update_app import UpdateAppDialog, safe_check_for_updates
+from mcsc_gui.ui.dialogs.whats_new import WhatsNewDialog, mark_seen, startup_notes
 from mcsc_gui.ui.navigator import (
     BACKUPS,
     CONFIGURATION,
@@ -270,7 +272,45 @@ class MainWindow(QMainWindow):
             self.open_delete_dialog(server)
 
     def open_settings_dialog(self) -> None:
-        self.open_dialog(AppSettingsDialog(self))
+        dialog = AppSettingsDialog(self)
+        dialog.changelog_requested.connect(self.open_changelog_dialog)
+        self.open_dialog(dialog)
+
+    def open_changelog_dialog(self) -> None:
+        """The full release history (from the App Settings)."""
+        if self._shutting_down:
+            return
+        self.open_dialog(WhatsNewDialog(self, load_changelog(), title=_("Changelog")))
+        self._send_whats_new_event("settings")
+
+    def run_startup_prompts(self) -> None:
+        """One popup at startup: the notes after an update, else the shortcut prompt."""
+        if not self.maybe_show_whats_new():
+            self.maybe_prompt_shortcut()
+
+    def maybe_show_whats_new(self) -> bool:
+        """After an update: show what's new since the last version used. True if shown."""
+        if self._shutting_down:
+            return False
+        current = get_current_version()
+        try:
+            settings = UserSettings()
+            notes = startup_notes(settings, current, load_changelog(),
+                                  has_servers=bool(sm.get_servers()))
+            # Saved before showing it: whatever happens next, it's never shown twice
+            mark_seen(settings, current)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("Can't check what's new")
+            return False
+        if not notes:
+            return False
+        self.open_dialog(WhatsNewDialog(self, notes, close_text=_("Got it")))
+        self._send_whats_new_event("startup")
+        return True
+
+    def _send_whats_new_event(self, source: str) -> None:
+        details = {"source": source, "version": get_current_version()}
+        run_task(send_event_async("whats_new_shown", details=details), show_errors=False)
 
     def maybe_prompt_shortcut(self) -> None:
         """First launch only: offer to add a desktop shortcut."""
