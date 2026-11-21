@@ -13,6 +13,9 @@ MCSC is a user-friendly tool written in Python with a GUI that simplifies the pr
 - **User-Friendly GUI**: A simple and intuitive interface designed for both beginners and experienced users.
 - **Manage Server Instances**: Keep track of all your servers in one place.
 - **Backups**: Back up a server with one click and restore it later (the current state is saved first). Backups can also be automatic, when a server starts or stops (app-wide or per server), keeping the latest ones. They are stored in the app data folder, under `backups/<server id>/`.
+- **Runs in the background**: Closing the window keeps the app and its servers running in the system tray; quit from the tray icon's menu (can be turned off in the App Settings).
+- **Start with Windows**: MCSC starts in the tray when you log in (on by default, can be changed in the App Settings or from Task Manager). On Linux it uses an autostart entry.
+- **Auto start servers**: Choose which servers start by themselves when the app opens (Server settings, or the dashboard context menu).
 - **Export and Import**: Export a server to a single `.zip` to move it to another PC, then import it there, or import an existing server folder made outside MCSC (it is copied, never moved).
 
 ## Screenshots

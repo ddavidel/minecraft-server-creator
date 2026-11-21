@@ -2,6 +2,26 @@
   "schema": 1,
   "releases": [
     {
+      "version": "3.2.0",
+      "date": "2026-11-21",
+      "title": {
+        "en": "Always on, in the background",
+        "it": "Sempre attivo, in background"
+      },
+      "highlights": {
+        "en": [
+          "MCSC now lives in the system tray: closing the window keeps the app and your servers running. Open it or quit from the tray icon",
+          "MCSC starts with Windows, straight into the tray. It's on by default: turn it off in the App Settings",
+          "Choose which servers start by themselves when the app opens, from the server settings or the dashboard context menu"
+        ],
+        "it": [
+          "MCSC ora resta nell'area di notifica: chiudendo la finestra l'app e i tuoi server restano attivi. Aprila o esci dall'icona nell'area di notifica",
+          "MCSC si avvia con Windows, direttamente nell'area di notifica. È attivo di default: puoi disattivarlo dalle Impostazioni dell'app",
+          "Scegli quali server avviare da soli all'apertura dell'app, dalle impostazioni del server o dal menu contestuale della dashboard"
+        ]
+      }
+    },
+    {
       "version": "3.1.0",
       "date": "2026-11-21",
       "title": {

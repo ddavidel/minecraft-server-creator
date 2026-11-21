@@ -4,7 +4,8 @@ Bridge between the GUI and the pymcsc library (imported as ``mcsc``).
 pymcsc owns everything about servers (registry, install, process, monitoring,
 config files, backups). This module adds what the library deliberately leaves to
 the app: the shared ``ServerManager`` instance, telemetry, translated labels and
-errors, user notifications and the automatic backup policy.
+errors, user notifications, the automatic backup policy and the servers
+started automatically when the app opens (``auto_start``).
 
 It must not import any UI toolkit: errors are reported through
 :func:`mcsc_gui.core.notifier.get_notifier` and registry changes through the
@@ -94,7 +95,7 @@ manager = ServerManager(
     app_version=_app_version(),
 )
 
-# Per-server app preferences (automatic backup override)
+# Per-server app preferences (automatic backup override, auto start)
 prefs = ServerPrefs(mcssettings.SERVER_PREFS_PATH)
 
 # Options for the "Server Type" selects: {0: "Vanilla", 1: "Paper", 2: "Forge"}
@@ -106,6 +107,15 @@ STATE_LABELS: dict[ServerState, str] = {
     ServerState.RUNNING: "Running",
     ServerState.STOPPING: "Stopping",
 }
+
+# Per-server preference: start the server when the app opens
+AUTO_START_PREF = "auto_start"
+# Auto start: each server gets up to AUTO_START_WAIT seconds to finish starting
+# before the next one starts
+AUTO_START_WAIT = 120
+AUTO_START_POLL = 0.5
+# Servers being started by auto_start_servers (telemetry "trigger")
+_auto_starting: set[str] = set()
 
 # Automatic backup policy of a server: "default" follows the app setting
 DEFAULT_POLICY = "default"
@@ -347,7 +357,10 @@ async def _send_event(event: str, details: dict[str, Any]) -> None:
 async def _on_state_change(server: MinecraftServer, old: ServerState, new: ServerState) -> None:
     """Server state listener: start/stop telemetry and the "on stop" automatic backup."""
     if new is ServerState.STARTING:
-        await send_event_async("server_start", details=telemetry_details(server))
+        details = telemetry_details(server)
+        if server.id in _auto_starting:
+            details["trigger"] = "auto"
+        await send_event_async("server_start", details=details)
     elif new is ServerState.STOPPED and old is not ServerState.STOPPED:
         if effective_backup_policy(server) == "on_stop":
             _schedule_auto_backup(server)
@@ -453,17 +466,20 @@ async def create_server(
 
 
 def update_server(server: MinecraftServer, name: str, ram_gb: int,
-                  auto_backup: str | None = None) -> None:
+                  auto_backup: str | None = None, auto_start: bool | None = None) -> None:
     """Change a server's editable settings and persist them.
 
     ``auto_backup`` (one of :data:`SERVER_BACKUP_POLICIES`) is the server's
-    automatic backup override; ``None`` leaves it unchanged.
+    automatic backup override and ``auto_start`` whether it starts when the app
+    opens; ``None`` leaves them unchanged.
     """
     name = (name or "").strip()
     if not name:
         raise ValueError(_("Server name can't be empty"))
     if auto_backup is not None:
         set_server_backup_policy(server, auto_backup)
+    if auto_start is not None:
+        prefs.set(server.id, AUTO_START_PREF, True if auto_start else None)
     server.config.name = name
     server.config.ram_gb = int(ram_gb)
     manager.save()
@@ -610,6 +626,59 @@ def effective_backup_policy(server: MinecraftServer) -> str:
     """The policy that applies to the server: its override, else the app setting."""
     policy = server_backup_policy(server)
     return app_backup_policy() if policy == DEFAULT_POLICY else policy
+
+
+# ---------------------------------------------------------- auto start
+
+
+def server_auto_start(server: MinecraftServer) -> bool:
+    """True if the server starts automatically when the app opens."""
+    return prefs.get(server.id, AUTO_START_PREF, False) is True
+
+
+def set_server_auto_start(server: MinecraftServer, enabled: bool) -> None:
+    """Turn the server's auto start on or off (and notify the UI)."""
+    prefs.set(server.id, AUTO_START_PREF, True if enabled else None)
+    _fire(_updated_callbacks, server)
+
+
+def auto_start_candidates() -> list[MinecraftServer]:
+    """The servers to start when the app opens, in dashboard order."""
+    return [s for s in get_servers() if server_auto_start(s)]
+
+
+async def auto_start_servers() -> list[MinecraftServer]:
+    """Start the auto start servers one at a time. Returns the started ones.
+
+    Active or busy servers are skipped; a server that fails to start is reported
+    (by :func:`start_server`) and doesn't prevent the others from starting.
+    """
+    started = []
+    for server in auto_start_candidates():
+        if server.is_active or is_busy(server):
+            continue
+        logger.info(f"Auto starting server {server.id}")
+        _auto_starting.add(server.id)
+        try:
+            await start_server(server)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.exception(f"Auto start of server {server.id} failed")
+            notify_error(e)
+            continue
+        finally:
+            _auto_starting.discard(server.id)
+        if server.is_active:
+            started.append(server)
+            await _wait_started(server)
+    return started
+
+
+async def _wait_started(server: MinecraftServer) -> None:
+    """Wait (bounded) until the server is past STARTING: one heavy start at a time."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + AUTO_START_WAIT
+    while server.state is ServerState.STARTING and loop.time() < deadline:
+        await asyncio.sleep(AUTO_START_POLL)
 
 
 def list_backups(server: MinecraftServer) -> list[Backup]:

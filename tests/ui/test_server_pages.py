@@ -333,6 +333,23 @@ def test_settings_page_saves_name_ram_and_policy(qtbot, bridge, server, events):
         page.dispose()
 
 
+def test_settings_page_saves_auto_start(qtbot, bridge, server, events):
+    page = open_page(qtbot, ServerSettingsPage(server, events))
+    try:
+        assert not page.auto_start.isChecked()
+        page.auto_start.setChecked(True)
+        with mock.patch.object(sm.manager, "save"):
+            page.save()
+            qtbot.waitUntil(lambda: sm.server_auto_start(server), timeout=2000)
+    finally:
+        page.dispose()
+    page = open_page(qtbot, ServerSettingsPage(server, events))
+    try:
+        assert page.auto_start.isChecked()
+    finally:
+        page.dispose()
+
+
 def test_settings_page_keeps_ram_above_system_total(qtbot, server, events):
     server.config.ram_gb = 4096
     page = open_page(qtbot, ServerSettingsPage(server, events))

@@ -84,6 +84,14 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\python\pythonw.exe"; Paramete
 [Run]
 Filename: "{app}\python\pythonw.exe"; Parameters: "-m mcsc_gui"; WorkingDir: "{%USERPROFILE}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
 
+[Registry]
+; Login autostart entry: created, updated and removed by the app itself
+; (mcsc_gui.core.autostart, Settings > Start MCSC when Windows starts). The
+; installer writes nothing (ValueType: none) and only removes it on uninstall,
+; together with the enabled/disabled state Task Manager keeps for it.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "MinecraftServerCreator"; Flags: uninsdeletevalue dontcreatekey
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"; ValueType: none; ValueName: "MinecraftServerCreator"; Flags: uninsdeletevalue dontcreatekey
+
 [UninstallDelete]
 ; Files created after the install: bytecode caches, packages and launchers
 ; written by the in-app updater (pip).
