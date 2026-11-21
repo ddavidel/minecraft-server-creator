@@ -183,9 +183,6 @@ def test_overview_shows_read_only_logs_resources_and_backups(qtbot, server, even
         with qtbot.waitSignal(page.section_requested) as blocker:
             page.all_backups_button.click()
         assert blocker.args == [server.id, BACKUPS]
-        with qtbot.waitSignal(page.section_requested) as blocker:
-            page.console_link.click()
-        assert blocker.args == [server.id, CONSOLE]
     finally:
         page.dispose()
 

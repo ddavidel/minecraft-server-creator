@@ -127,6 +127,7 @@ class ServerPage(QWidget):
         self._listen(events.busy_changed, self._on_busy_changed)
         self._listen(events.backups_changed, self._on_backups_changed)
         self._listen(events.output_lines, self._on_output)
+        self._listen(events.players_changed, self._on_players_changed)
 
     # ------------------------------------------------------------- lifecycle
 
@@ -170,6 +171,9 @@ class ServerPage(QWidget):
     def on_backups_changed(self) -> None:
         """A backup of the server was created or deleted."""
 
+    def on_players_changed(self, status) -> None:
+        """New online players status of the server (:class:`players.PlayerStatus`)."""
+
     def on_dispose(self) -> None:
         """Release timers and other resources."""
 
@@ -196,3 +200,7 @@ class ServerPage(QWidget):
     def _on_output(self, server_id: str, lines: list) -> None:
         if server_id == self.server.id:
             self.on_output(lines)
+
+    def _on_players_changed(self, server_id: str, status) -> None:
+        if server_id == self.server.id:
+            self.on_players_changed(status)

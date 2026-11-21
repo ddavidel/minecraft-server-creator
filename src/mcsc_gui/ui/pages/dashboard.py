@@ -164,6 +164,7 @@ class DashboardPage(QWidget):
         events.server_removed.connect(self._on_server_removed)
         events.server_updated.connect(self._on_server_updated)
         events.busy_changed.connect(self._on_server_updated)
+        events.players_changed.connect(self._on_players_changed)
 
     # ----------------------------------------------------------------- cards
 
@@ -200,6 +201,11 @@ class DashboardPage(QWidget):
 
     def _on_server_updated(self, server_id: str) -> None:
         self._on_state_changed(server_id, "", "")
+
+    def _on_players_changed(self, server_id: str, status) -> None:
+        card = self._cards.get(server_id)
+        if card is not None:
+            card.set_players(status)
 
     def _on_server_added(self, server_id: str) -> None:
         server = self._find(server_id)

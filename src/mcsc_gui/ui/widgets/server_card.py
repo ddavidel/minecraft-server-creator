@@ -8,8 +8,9 @@ from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QContextMenuEvent, QKeyEvent
 from PySide6.QtWidgets import QHBoxLayout, QMenu, QWidget
 
-from mcsc import MinecraftServer
+from mcsc import MinecraftServer, ServerState
 
+from mcsc_gui.core import players
 from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.ui.theme.icons import ICON_SIZE, icon
@@ -56,6 +57,19 @@ class ServerCard(Card):
 
         self.details_label = label("", "mono")
         self.layout_.addWidget(self.details_label)
+
+        # Online players, only while the server is running
+        self.players_chip = QWidget()
+        chip = QHBoxLayout(self.players_chip)
+        chip.setContentsMargins(0, 0, 0, 0)
+        chip.setSpacing(TOKENS.spacing.xs)
+        players_icon = label()
+        players_icon.setPixmap(icon("players", TOKENS.palette.text_muted).pixmap(ICON_SIZE))
+        chip.addWidget(players_icon)
+        self.players_label = label("", "muted")
+        chip.addWidget(self.players_label)
+        chip.addStretch(1)
+        self.layout_.addWidget(self.players_chip)
         self.layout_.addStretch(1)
 
         actions = QHBoxLayout()
@@ -84,7 +98,17 @@ class ServerCard(Card):
         self.auto_start_icon.setVisible(sm.server_auto_start(self.server))
         self.start_button.setEnabled(sm.can_start(self.server))
         self.stop_button.setEnabled(sm.can_stop(self.server))
-        self.setAccessibleName(f"{config.name}, {self.badge.text}")
+        self.set_players(players.status(self.server.id))
+
+    def set_players(self, status: players.PlayerStatus) -> None:
+        """Show the online players (hidden unless the server is running)."""
+        running = self.server.state is ServerState.RUNNING
+        self.players_chip.setVisible(running)
+        text = _("{count} players", count=status.label())
+        self.players_label.setText(text)
+        self.players_chip.setToolTip(", ".join(status.names) if status.names else "")
+        name = f"{self.server.config.name}, {self.badge.text}"
+        self.setAccessibleName(f"{name}, {text}" if running else name)
 
     # ---------------------------------------------------------- context menu
 

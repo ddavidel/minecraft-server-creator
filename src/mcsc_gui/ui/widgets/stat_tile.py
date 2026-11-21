@@ -54,6 +54,11 @@ class StatTile(Card):
             self.layout_.addWidget(self.sparkline)
         self.setAccessibleName(caption)
 
+    def set_text(self, text: str | None, history: Iterable[float] = ()) -> None:
+        """Show a preformatted value (``None``: the empty value)."""
+        self.value_label.setText("—" if text is None else text)
+        self.sparkline.set_values(history)
+
     def set_value(self, value: float | None, history: Iterable[float] = ()) -> None:
         if value is None:
             self.value_label.setText("—")
