@@ -33,7 +33,7 @@ SECTION_TITLES: dict[str, str] = {
 
 
 class ServerHeader(QWidget):
-    """Name, state, details, "open folder" and Start/Stop of a server."""
+    """Name, state, "open folder" and Start/Stop of a server."""
 
     def __init__(self, server: MinecraftServer, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -43,8 +43,6 @@ class ServerHeader(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(s.md)
 
-        titles = QVBoxLayout()
-        titles.setSpacing(2)
         name_row = QHBoxLayout()
         name_row.setSpacing(s.sm)
         self.name_label = label("", "display")
@@ -54,10 +52,7 @@ class ServerHeader(QWidget):
         self.badge = StatusBadge(server.state)
         name_row.addWidget(self.badge, 0, Qt.AlignmentFlag.AlignVCenter)
         name_row.addStretch(1)
-        titles.addLayout(name_row)
-        self.details_label = label("", "muted")
-        titles.addWidget(self.details_label)
-        row.addLayout(titles, 1)
+        row.addLayout(name_row, 1)
 
         self.folder_button = icon_button("folder", _("Open server folder"))
         self.folder_button.clicked.connect(lambda: open_file_explorer(self.server.path))
@@ -74,10 +69,6 @@ class ServerHeader(QWidget):
         server = self.server
         config = server.config
         self.name_label.setText(config.name)
-        self.details_label.setText(
-            f"{config.server_type.label} {config.version} · {config.ram_gb} GB RAM · "
-            f"{_('Port')} {config.port}"
-        )
         self.badge.set_state(server.state)
         self.badge.set_activity(sm.activity_label(server))
         self.start_button.setEnabled(sm.can_start(server))
@@ -127,6 +118,7 @@ class ServerPage(QWidget):
         self._listen(events.busy_changed, self._on_busy_changed)
         self._listen(events.backups_changed, self._on_backups_changed)
         self._listen(events.output_lines, self._on_output)
+        self._listen(events.players_changed, self._on_players_changed)
 
     # ------------------------------------------------------------- lifecycle
 
@@ -170,6 +162,9 @@ class ServerPage(QWidget):
     def on_backups_changed(self) -> None:
         """A backup of the server was created or deleted."""
 
+    def on_players_changed(self, status) -> None:
+        """New online players status of the server (:class:`players.PlayerStatus`)."""
+
     def on_dispose(self) -> None:
         """Release timers and other resources."""
 
@@ -196,3 +191,7 @@ class ServerPage(QWidget):
     def _on_output(self, server_id: str, lines: list) -> None:
         if server_id == self.server.id:
             self.on_output(lines)
+
+    def _on_players_changed(self, server_id: str, status) -> None:
+        if server_id == self.server.id:
+            self.on_players_changed(status)

@@ -183,9 +183,6 @@ def test_overview_shows_read_only_logs_resources_and_backups(qtbot, server, even
         with qtbot.waitSignal(page.section_requested) as blocker:
             page.all_backups_button.click()
         assert blocker.args == [server.id, BACKUPS]
-        with qtbot.waitSignal(page.section_requested) as blocker:
-            page.console_link.click()
-        assert blocker.args == [server.id, CONSOLE]
     finally:
         page.dispose()
 
@@ -329,6 +326,23 @@ def test_settings_page_saves_name_ram_and_policy(qtbot, bridge, server, events):
         page.name.widget.setText(" ")
         page.save()
         assert page.name.error == "Server name can't be empty"
+    finally:
+        page.dispose()
+
+
+def test_settings_page_saves_auto_start(qtbot, bridge, server, events):
+    page = open_page(qtbot, ServerSettingsPage(server, events))
+    try:
+        assert not page.auto_start.isChecked()
+        page.auto_start.setChecked(True)
+        with mock.patch.object(sm.manager, "save"):
+            page.save()
+            qtbot.waitUntil(lambda: sm.server_auto_start(server), timeout=2000)
+    finally:
+        page.dispose()
+    page = open_page(qtbot, ServerSettingsPage(server, events))
+    try:
+        assert page.auto_start.isChecked()
     finally:
         page.dispose()
 

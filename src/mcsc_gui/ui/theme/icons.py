@@ -54,6 +54,10 @@ ICON_MAP: dict[str, str] = {
     "shortcut": "monitor-arrow-down",
     "open_in_new": "open-in-new",
     "history": "history",
+    "auto_start": "rocket-launch-outline",
+    "players": "account-multiple-outline",
+    "player": "account-outline",
+    "trend": "chart-line",
 }
 
 ICON_SIZE = QSize(18, 18)

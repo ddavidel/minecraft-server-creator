@@ -98,7 +98,8 @@ def test_card_menu_has_edit_clone_delete(qtbot, make_server):
     try:
         card = page.cards["srv"]
         menu = card.build_menu()
-        assert [a.text() for a in menu.actions()] == ["Edit", "Clone", "", "Delete"]
+        assert [a.text() for a in menu.actions()] == [
+            "Edit", "Clone", "Start when the app opens", "", "Delete"]
         actions = menu_actions(menu)
         assert menu.danger_item(actions["Delete"]) is not None  # drawn in red
         assert menu.danger_item(actions["Edit"]) is None
@@ -186,8 +187,32 @@ def test_card_menu_delete_works_with_mouse_and_keyboard(qtbot, make_server):
 
         menu = card.show_menu()
         with qtbot.waitSignal(page.delete_server, timeout=1000):
-            for _ in range(3):
+            for _ in range(4):
                 qtbot.keyClick(menu, Qt.Key.Key_Down)
             qtbot.keyClick(menu, Qt.Key.Key_Return)
+    finally:
+        events.close()
+
+
+def test_card_menu_toggles_auto_start(qtbot, make_server, tmp_path, monkeypatch):
+    from mcsc_gui.core import server_manager as sm  # pylint: disable=import-outside-toplevel
+    from mcsc_gui.core.server_prefs import ServerPrefs  # pylint: disable=import-outside-toplevel
+
+    monkeypatch.setattr(sm, "prefs", ServerPrefs(tmp_path / "prefs.json"))
+    server = make_server()
+    page, events, _registry = make_dashboard(qtbot, [server])
+    try:
+        card = page.cards["srv"]
+        assert not card.auto_start_icon.isVisibleTo(card)
+        action = menu_actions(card.build_menu())["Start when the app opens"]
+        assert action.isCheckable() and not action.isChecked()
+        action.trigger()
+        assert sm.server_auto_start(server)
+        card.refresh()
+        assert card.auto_start_icon.isVisibleTo(card)
+        action = menu_actions(card.build_menu())["Start when the app opens"]
+        assert action.isChecked()
+        action.trigger()
+        assert not sm.server_auto_start(server)
     finally:
         events.close()

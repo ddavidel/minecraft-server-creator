@@ -13,6 +13,11 @@ MCSC is a user-friendly tool written in Python with a GUI that simplifies the pr
 - **User-Friendly GUI**: A simple and intuitive interface designed for both beginners and experienced users.
 - **Manage Server Instances**: Keep track of all your servers in one place.
 - **Backups**: Back up a server with one click and restore it later (the current state is saved first). Backups can also be automatic, when a server starts or stops (app-wide or per server), keeping the latest ones. They are stored in the app data folder, under `backups/<server id>/`.
+- **Runs in the background**: Closing the window keeps the app and its servers running in the system tray; quit from the tray icon's menu (can be turned off in the App Settings).
+- **Start with Windows**: MCSC starts in the tray when you log in (on by default, can be changed in the App Settings or from Task Manager). On Linux it uses an autostart entry.
+- **Auto start servers**: Choose which servers start by themselves when the app opens (Server settings, or the dashboard context menu).
+- **Online players**: See how many players are online on each server card, and who they are on the server page. MCSC turns on the Minecraft Query protocol (`enable-query` and `query.port` in `server.properties`) at every start; turn off "Track online players" in the server settings to leave the file alone (only the player count is shown then).
+- **Stats history**: Online players, CPU and RAM are saved every minute while a server runs (for 30 days, in the app data folder) and shown as trend charts from the server page.
 - **Export and Import**: Export a server to a single `.zip` to move it to another PC, then import it there, or import an existing server folder made outside MCSC (it is copied, never moved).
 
 ## Screenshots

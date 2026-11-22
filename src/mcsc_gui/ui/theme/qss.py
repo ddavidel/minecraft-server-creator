@@ -363,7 +363,8 @@ QMenu {{
     border-radius: {r.control}px;
     padding: 2px;
 }}
-QMenu::item {{ padding: 6px 16px; border-radius: 0; }}
+QMenu::item {{ padding: 6px 16px 6px 21px; border-radius: 0; }}
+QMenu::icon {{ padding-left: 15px; }}
 QMenu::item:selected {{ background: {p.accent}; color: {p.text_on_accent}; }}
 QMenu::item:disabled {{ color: {p.text_disabled}; }}
 QMenu::separator {{ height: {bw}px; background: {p.border_strong}; margin: 2px 0; }}

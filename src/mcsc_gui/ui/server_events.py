@@ -23,6 +23,7 @@ from PySide6.QtCore import QObject, QTimer, Signal, Slot
 
 from mcsc import MinecraftServer, ServerState
 
+from mcsc_gui.core import players
 from mcsc_gui.core import server_manager as sm
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ class ServerEvents(QObject):
     server_updated = Signal(str)  # server_id (name / RAM / version changed)
     busy_changed = Signal(str)  # server_id (backup, restore, export... started or ended)
     backups_changed = Signal(str)  # server_id (backup created or deleted)
+    players_changed = Signal(str, object)  # server_id, players.PlayerStatus
 
     def __init__(
         self,
@@ -65,6 +67,7 @@ class ServerEvents(QObject):
             sm.on_server_updated(self._on_server_updated)
             sm.on_server_busy_changed(self._on_busy_changed)
             sm.on_backups_changed(self._on_backups_changed)
+        players.add_listener(self._on_players_changed)
 
     # ------------------------------------------------------------ listeners
 
@@ -125,6 +128,7 @@ class ServerEvents(QObject):
             sm.remove_callback(self._on_server_updated)
             sm.remove_callback(self._on_busy_changed)
             sm.remove_callback(self._on_backups_changed)
+        players.remove_listener(self._on_players_changed)
 
     # --------------------------------------------------------------- output
 
@@ -157,3 +161,6 @@ class ServerEvents(QObject):
 
     def _on_backups_changed(self, server: MinecraftServer) -> None:
         self.backups_changed.emit(server.id)
+
+    def _on_players_changed(self, server_id: str, status: players.PlayerStatus) -> None:
+        self.players_changed.emit(server_id, status)

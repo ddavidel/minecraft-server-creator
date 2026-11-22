@@ -1,6 +1,10 @@
 """
 Main window: frameless (unless the native title bar is enabled), with
 TitleBar + Sidebar + page stack + toasts, and the safe shutdown sequence.
+
+With a tray icon attached (:meth:`MainWindow.attach_tray`) closing the window
+only hides it (setting ``close_to_tray``): the app and its servers keep running
+until the user quits from the tray.
 """
 
 from __future__ import annotations
@@ -9,7 +13,7 @@ import asyncio
 import logging
 
 from PySide6.QtCore import QEvent, Qt, QTimer
-from PySide6.QtGui import QCloseEvent, QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QCloseEvent, QIcon, QKeySequence, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -26,7 +30,7 @@ from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core.async_bridge import AsyncBridge
 from mcsc_gui.core.changelog import load_changelog
 from mcsc_gui.core.translations import translate as _
-from mcsc_gui.core.user_settings import UserSettings
+from mcsc_gui.core.user_settings import DEFAULT_CLOSE_TO_TRAY, UserSettings
 from mcsc_gui.telemetry import send_event_async
 from mcsc_gui.update import get_current_version, launch_updater
 from mcsc_gui.ui.dialogs.app_settings import AppSettingsDialog
@@ -81,6 +85,7 @@ DEFAULT_SIZE = (1300, 800)
 MINIMUM_SIZE = (1000, 640)
 TELEMETRY_CLOSE_TIMEOUT = 6  # seconds
 BACKUP_CLOSE_TIMEOUT = 600  # extra seconds to quit when servers are backed up on stop
+STARTUP_PROMPTS_DELAY_MS = 800
 
 
 async def _shutdown_servers() -> None:
@@ -103,6 +108,11 @@ class MainWindow(QMainWindow):
         self._shutting_down = False
         self._quit_ready = False
         self._update_on_exit = False
+        self._prompts_pending = False
+        self._prompts_done = False
+        self.tray = None  # TrayIcon, see attach_tray
+        # Servers started automatically at startup: cancelled when the app quits
+        self.auto_start_future = None
 
         self.setWindowTitle(APP_TITLE)
         self.setWindowIcon(QIcon(str(get_static_path("logo.ico"))))
@@ -160,7 +170,7 @@ class MainWindow(QMainWindow):
         self.title_bar.back_requested.connect(self.navigator.back)
         self.title_bar.minimize_requested.connect(self.showMinimized)
         self.title_bar.maximize_requested.connect(self.toggle_maximized)
-        self.title_bar.close_requested.connect(self.close)
+        self.title_bar.close_requested.connect(self.close_by_user)
         events.server_removed.connect(self._on_server_removed)
 
         QShortcut(QKeySequence("Ctrl+N"), self, activated=self.open_create_dialog)
@@ -283,6 +293,23 @@ class MainWindow(QMainWindow):
         self.open_dialog(WhatsNewDialog(self, load_changelog(), title=_("Changelog")))
         self._send_whats_new_event("settings")
 
+    def schedule_startup_prompts(self) -> None:
+        """Show the startup prompts once the window is visible (later if it starts hidden)."""
+        self._prompts_pending = True
+        if self.isVisible():
+            self._show_pending_prompts()
+
+    def _show_pending_prompts(self) -> None:
+        if not self._prompts_pending or self._prompts_done:
+            return
+        self._prompts_pending = False
+        self._prompts_done = True
+        QTimer.singleShot(STARTUP_PROMPTS_DELAY_MS, self.run_startup_prompts)
+
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802 - Qt API
+        super().showEvent(event)
+        self._show_pending_prompts()
+
     def run_startup_prompts(self) -> None:
         """One popup at startup: the notes after an update, else the shortcut prompt."""
         if not self.maybe_show_whats_new():
@@ -338,7 +365,10 @@ class MainWindow(QMainWindow):
         self._update_available = bool(available)
         self.sidebar.set_update_available(self._update_available)
         if available and notify:
-            self.toasts.info(_("Update available"), timeout_ms=10_000)
+            if self.tray is not None and not self.isVisible():
+                self.tray.notify(_("Update available"))
+            else:
+                self.toasts.info(_("Update available"), timeout_ms=10_000)
 
     def on_updates_clicked(self) -> None:
         if self._update_available:
@@ -377,6 +407,66 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
 
+    # -------------------------------------------------------------- tray
+
+    def attach_tray(self, tray) -> None:
+        """Use ``tray`` (a :class:`~mcsc_gui.ui.tray.TrayIcon`): closing hides the window."""
+        self.tray = tray
+        tray.open_requested.connect(self.bring_to_front)
+        tray.stop_all_requested.connect(self.stop_all_servers)
+        tray.quit_requested.connect(self.quit_from_tray)
+
+    def close_to_tray_enabled(self) -> bool:
+        if self.tray is None:
+            return False
+        try:
+            settings = UserSettings().user_settings
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("Can't read the user settings")
+            return DEFAULT_CLOSE_TO_TRAY
+        return bool(settings.get("close_to_tray", DEFAULT_CLOSE_TO_TRAY))
+
+    def close_by_user(self) -> None:
+        """The user closed the window: hide it in the tray or quit."""
+        if self._shutting_down:
+            return
+        if self.close_to_tray_enabled():
+            self.hide_to_tray()
+        else:
+            self.request_quit(confirm=True)
+
+    def hide_to_tray(self) -> None:
+        self.hide()
+        self._maybe_show_tray_hint()
+
+    def _maybe_show_tray_hint(self) -> None:
+        """The first time only: tell the user the app is still running."""
+        try:
+            settings = UserSettings()
+            if settings.user_settings.get("tray_hint_shown"):
+                return
+            settings.update_settings(tray_hint_shown=True)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("Can't save the tray hint flag")
+            return
+        if self.tray is not None:
+            self.tray.notify(_("Minecraft Server Creator is still running in the tray. "
+                               "Right-click the icon to quit."))
+
+    def stop_all_servers(self) -> None:
+        if self._shutting_down or not sm.any_server_active():
+            return
+        run_task(sm.stop_all_servers(), progress=_("Stopping all servers..."),
+                 success=_("All servers stopped"))
+
+    def quit_from_tray(self) -> None:
+        """Quit with the usual confirmation, shown in the window."""
+        if self._shutting_down:
+            self.bring_to_front()
+            return
+        self.bring_to_front()
+        self.request_quit(confirm=True)
+
     def changeEvent(self, event: QEvent) -> None:  # noqa: N802 - Qt API
         if event.type() == QEvent.Type.WindowStateChange:
             maximized = self.isMaximized()
@@ -402,7 +492,12 @@ class MainWindow(QMainWindow):
             event.accept()
             return
         event.ignore()
-        self.request_quit(confirm=True)
+        if event.spontaneous():  # the system title bar's X, Alt+F4
+            self.close_by_user()
+        else:  # programmatic (e.g. the app is asked to quit)
+            if not self.isVisible():
+                self.bring_to_front()  # the confirmation must be visible
+            self.request_quit(confirm=True)
 
     def request_quit(self, *, confirm: bool = True, update: bool = False) -> None:
         """Quit safely: confirm, stop every server, send telemetry, then exit.
@@ -430,6 +525,8 @@ class MainWindow(QMainWindow):
         self._shutting_down = True
         self._update_on_exit = update
         logger.info("Shutting down the app...")
+        if self.auto_start_future is not None:
+            self.auto_start_future.cancel()  # don't start more servers while quitting
         # "On stop" automatic backups run after the servers stop: wait for them too
         backing_up = sm.pending_backups() > 0 or any(
             sm.effective_backup_policy(s) == "on_stop" for s in sm.manager.active_servers)
@@ -449,6 +546,8 @@ class MainWindow(QMainWindow):
         if self._quit_ready or not isValid(self):
             return
         self._quit_ready = True
+        if self.tray is not None:
+            self.tray.hide()
         if self._update_on_exit and not launch_updater():
             logger.error("The updater didn't start: the app closes without updating")
         self.events.close()
