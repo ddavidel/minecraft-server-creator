@@ -38,11 +38,18 @@ def bridge():
 def host(qtbot):
     from PySide6.QtWidgets import QWidget  # pylint: disable=import-outside-toplevel
 
+    from shiboken6 import delete, isValid  # pylint: disable=import-outside-toplevel
+
     widget = QWidget()
     widget.resize(1100, 760)
     qtbot.addWidget(widget)
     widget.show()
-    return widget
+    yield widget
+    # Destroy it (and its dialogs) now: deleteLater alone leaves it to the garbage
+    # collector, and a fade animation still running could then fire during a later
+    # test, on a dialog whose Python object is already gone.
+    if isValid(widget):
+        delete(widget)
 
 
 @pytest.fixture
