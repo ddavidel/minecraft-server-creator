@@ -3,7 +3,7 @@
   "releases": [
     {
       "version": "3.2.0",
-      "date": "2026-11-21",
+      "date": "2026-11-22",
       "title": {
         "en": "Always on, in the background",
         "it": "Sempre attivo, in background"
@@ -15,6 +15,7 @@
           "Choose which servers start by themselves when the app opens, from the server settings or the dashboard context menu",
           "See who's online: the player count on each server card, and the names of the online players on the server page",
           "Stats history: online players, CPU and RAM are saved while a server runs and shown as trend charts from the server page",
+          "New server type: Fabric. Create Fabric servers to play with Fabric mods",
           "Interface improvements and fixes: disk activity in the stats history, exact values when hovering a chart, the server's own colors in the console, and many small visual touches"
         ],
         "it": [
@@ -23,6 +24,7 @@
           "Scegli quali server avviare da soli all'apertura dell'app, dalle impostazioni del server o dal menu contestuale della dashboard",
           "Scopri chi è online: il numero di giocatori su ogni scheda dei server e i nomi dei giocatori online nella pagina del server",
           "Storico statistiche: giocatori online, CPU e RAM vengono salvati mentre il server è acceso e mostrati come grafici dalla pagina del server",
+          "Nuovo tipo di server: Fabric. Crea server Fabric per giocare con le mod Fabric",
           "Miglioramenti e correzioni all'interfaccia: attività del disco nello storico statistiche, valori esatti passando sui grafici, i colori del server nella console e tanti piccoli ritocchi grafici"
         ]
       }
