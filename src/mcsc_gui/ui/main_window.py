@@ -27,6 +27,7 @@ from shiboken6 import isValid
 
 from mcsc_gui.config import settings as mcssettings
 from mcsc_gui.core import server_manager as sm
+from mcsc_gui.core import session
 from mcsc_gui.core.async_bridge import AsyncBridge
 from mcsc_gui.core.changelog import load_changelog
 from mcsc_gui.core.translations import translate as _
@@ -92,7 +93,10 @@ async def _shutdown_servers() -> None:
     """Stop every server, then send the app_close event (bounded)."""
     await sm.stop_all_servers()
     try:
-        await asyncio.wait_for(send_event_async("app_close"), TELEMETRY_CLOSE_TIMEOUT)
+        await asyncio.wait_for(
+            asyncio.to_thread(session.send_app_close, session.REASON_QUIT,
+                              TELEMETRY_CLOSE_TIMEOUT - 1),
+            TELEMETRY_CLOSE_TIMEOUT)
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Can't send app_close telemetry: {e}")
 
@@ -486,6 +490,11 @@ class MainWindow(QMainWindow):
     @property
     def shutting_down(self) -> bool:
         return self._shutting_down
+
+    @property
+    def quit_ready(self) -> bool:
+        """The quit sequence is over: servers stopped and app_close sent (or timed out)."""
+        return self._quit_ready
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt API
         if self._quit_ready:

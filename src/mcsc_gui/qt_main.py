@@ -7,7 +7,8 @@ background work (autostart entry, versions preload, auto start servers,
 telemetry, update check) -> event loop -> safe shutdown.
 
 ``--background`` (used by the login autostart entry) starts the app in the
-tray without showing the window.
+tray without showing the window. An OS shutdown or logoff while the app runs
+is handled by :class:`~mcsc_gui.ui.session_end.SessionEndHandler`.
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from mcsc_gui.config import settings as mcssettings  # noqa: E402
 from mcsc_gui.core import server_manager as sm  # noqa: E402
 from mcsc_gui.core import autostart  # noqa: E402
+from mcsc_gui.core import session  # noqa: E402
 from mcsc_gui.core import stats_history  # noqa: E402
 from mcsc_gui.core.async_bridge import get_bridge  # noqa: E402
 from mcsc_gui.core.logger import setup_logging  # noqa: E402
@@ -47,6 +49,7 @@ from mcsc_gui.ui import tasks  # noqa: E402
 from mcsc_gui.ui.invoke import install_invoker, invoke_in_ui  # noqa: E402
 from mcsc_gui.ui.main_window import APP_TITLE, MainWindow  # noqa: E402
 from mcsc_gui.ui.server_events import ServerEvents  # noqa: E402
+from mcsc_gui.ui.session_end import SessionEndHandler  # noqa: E402
 from mcsc_gui.ui.single_instance import SingleInstance  # noqa: E402
 from mcsc_gui.ui.tray import TrayIcon, TrayNotifier, window_visible  # noqa: E402
 from mcsc_gui.ui.theme.fonts import load_fonts  # noqa: E402
@@ -57,7 +60,9 @@ from mcsc_gui.utils import get_static_path  # noqa: E402
 logger = logging.getLogger("mcsc_gui.qt")
 
 
-def _send_app_start() -> None:
+def _send_app_start(previous_unclean: bool = False) -> None:
+    if previous_unclean:
+        session.send_unclean_close()
     get_telemetry_client().send_event(
         event_name="app_start",
         details={"version": get_current_version(), "ui": "qt"},
@@ -136,6 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     if not instance.acquire():
         return 0
 
+    previous_unclean = session.begin()
     install_invoker()
     app.setStyle("Fusion")
     load_fonts()
@@ -167,6 +173,8 @@ def main(argv: list[str] | None = None) -> int:
     app.setQuitOnLastWindowClosed(tray is None)
     instance.activated.connect(window.bring_to_front)
     wake = _install_safety_net(bridge, window)
+    session_end = SessionEndHandler(app, window, events, bridge)
+    session_end.refresh_block()
 
     if not background:
         window.show()
@@ -179,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     bridge.call(sm.preload_versions)
     bridge.call(stats_history.prune_old)
     window.auto_start_future = bridge.submit(_auto_start_servers())
-    bridge.call(_send_app_start)
+    bridge.call(_send_app_start, previous_unclean)
     window.start_update_check()
 
     code = app.exec()
@@ -191,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
     if tray is not None:
         tray.hide()
     instance.release()
+    session.end()
     logger.info("Bye")
     return code
 
