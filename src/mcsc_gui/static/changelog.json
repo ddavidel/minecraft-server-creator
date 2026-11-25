@@ -2,6 +2,17 @@
   "schema": 1,
   "releases": [
     {
+      "version": "3.2.1",
+      "highlights": {
+        "en": [
+          "Shutting down or restarting the PC while MCSC runs in the tray now stops your servers safely: Windows waits for them to save their worlds before turning off"
+        ],
+        "it": [
+          "Spegnendo o riavviando il PC mentre MCSC è nell'area di notifica, i server vengono ora arrestati in sicurezza: Windows aspetta che salvino i mondi prima di spegnersi"
+        ]
+      }
+    },
+    {
       "version": "3.2.0",
       "date": "2026-11-22",
       "title": {
