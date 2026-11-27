@@ -7,8 +7,10 @@ background work (autostart entry, versions preload, auto start servers,
 telemetry, update check) -> event loop -> safe shutdown.
 
 ``--background`` (used by the login autostart entry) starts the app in the
-tray without showing the window. An OS shutdown or logoff while the app runs
-is handled by :class:`~mcsc_gui.ui.session_end.SessionEndHandler`.
+tray without showing the window. If a new version is out the app exits right
+after the single instance check: the silent updater installs it and reopens
+the app with the same options. An OS shutdown or logoff while the app runs is
+handled by :class:`~mcsc_gui.ui.session_end.SessionEndHandler`.
 """
 
 from __future__ import annotations
@@ -54,7 +56,7 @@ from mcsc_gui.ui.single_instance import SingleInstance  # noqa: E402
 from mcsc_gui.ui.tray import TrayIcon, TrayNotifier, window_visible  # noqa: E402
 from mcsc_gui.ui.theme.fonts import load_fonts  # noqa: E402
 from mcsc_gui.ui.theme.qss import build_stylesheet  # noqa: E402
-from mcsc_gui.update import get_current_version  # noqa: E402
+from mcsc_gui.update import auto_update_at_startup, get_current_version  # noqa: E402
 from mcsc_gui.utils import get_static_path  # noqa: E402
 
 logger = logging.getLogger("mcsc_gui.qt")
@@ -139,6 +141,11 @@ def main(argv: list[str] | None = None) -> int:
 
     instance = SingleInstance()
     if not instance.acquire():
+        return 0
+    # Before any window or server: nothing to stop, nothing the user sees close
+    if auto_update_at_startup(UserSettings()):
+        logger.info("Closing for the automatic update")
+        instance.release()
         return 0
 
     previous_unclean = session.begin()

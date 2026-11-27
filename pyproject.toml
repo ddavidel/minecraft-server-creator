@@ -11,6 +11,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
     "requests",
+    "packaging",  # version comparison for the update check
     "appdirs",
     "pymcsc==0.3.1",  # server management, imported as `mcsc` (pinned: bump deliberately after testing)
     "PySide6-Essentials>=6.8",

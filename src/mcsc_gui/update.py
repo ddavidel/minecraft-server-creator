@@ -14,6 +14,7 @@ from collections.abc import Callable
 from pathlib import Path, PureWindowsPath
 
 import requests
+from packaging.version import InvalidVersion, Version
 
 from mcsc_gui.config.settings import (
     DEFAULT_LANGUAGE,
@@ -38,27 +39,34 @@ def get_current_version() -> str:
     return current
 
 
+def is_newer(latest: str, current: str) -> bool:
+    """True if ``latest`` is a later version than ``current`` (PEP 440: 3.2.10 > 3.2.9).
+
+    A pre-release (``4.0.0rc1``) is never offered: pip wouldn't install it.
+    """
+    try:
+        latest_version, current_version = Version(latest), Version(current)
+    except InvalidVersion:
+        return False
+    return not latest_version.is_prerelease and latest_version > current_version
+
+
+def get_latest_version(timeout: float = 5) -> str | None:
+    """The latest version published on PyPI (None if PyPI doesn't answer)."""
+    response = requests.get(PYPI_PACKAGE_URL, timeout=timeout)
+    if response.status_code != 200:
+        logger.warning(f"Unable to check for updates (HTTP {response.status_code})")
+        return None
+    return str(response.json()["info"]["version"])
+
+
 def check_for_updates() -> bool:
     """
     Check for updates
     """
     logger.info("Checking for updates...")
-    current_version = get_current_version()
-
-    response = requests.get(PYPI_PACKAGE_URL, timeout=5)
-    if response.status_code == 200:
-        latest_version: str = response.json()["info"]["version"]
-    else:
-        logger.warning("Unable to check for updates")
-        return False
-
-    try:
-        current_version = int(current_version.replace(".", ""))
-        latest_version = int(latest_version.replace(".", ""))
-    except ValueError:
-        return False
-
-    return latest_version > current_version
+    latest = get_latest_version()
+    return latest is not None and is_newer(latest, get_current_version())
 
 
 # Update workflow: the app can't upgrade itself while it's running, because
@@ -171,10 +179,20 @@ def launcher_pid(pid: int | None = None, parents: dict[int, int] | None = None,
     return None
 
 
-def relaunch_command(argv: list[str] | None = None) -> list[str]:
-    """Command that reopens the app, keeping its options (e.g. ``--debug``)."""
+def relaunch_command(argv: list[str] | None = None, background: bool | None = None) -> list[str]:
+    """Command that reopens the app, keeping its options (e.g. ``--debug``).
+
+    ``background`` True/False adds/removes ``--background`` (tray only, no
+    window); None keeps what the app was started with.
+    """
+    from mcsc_gui.core.autostart import BACKGROUND_ARG  # pylint: disable=import-outside-toplevel
+
     argv = list(sys.argv if argv is None else argv)
     options = [arg for arg in argv[1:] if arg.startswith("--")]
+    if background is not None:
+        options = [arg for arg in options if arg != BACKGROUND_ARG]
+        if background:
+            options.append(BACKGROUND_ARG)
     script = Path(argv[0]) if argv else Path()
     # Started from a script of the source tree (scripts/start.py): rerun it
     if script.suffix == ".py" and script.name != "__main__.py" and script.exists():
@@ -184,7 +202,7 @@ def relaunch_command(argv: list[str] | None = None) -> list[str]:
 
 def updater_command(script: str, *, pid: int, launcher: int | None, lang: str,
                     icon: str | None, log: str | None,
-                    relaunch: list[str]) -> list[str]:
+                    relaunch: list[str], silent: bool = False) -> list[str]:
     command = [_windowless_python(), "-I", script,
                "--python", _console_python(), "--package", PACKAGE_NAME,
                "--wait-pid", str(pid), "--relaunch", json.dumps(relaunch), "--lang", lang]
@@ -194,11 +212,18 @@ def updater_command(script: str, *, pid: int, launcher: int | None, lang: str,
         command += ["--icon", icon]
     if log:
         command += ["--log", log]
+    if silent:
+        command.append("--silent")
     return command
 
 
-def launch_updater() -> bool:
-    """Start the updater process (it waits for this app to exit). Returns success."""
+def launch_updater(silent: bool = False, background: bool | None = None) -> bool:
+    """Start the updater process (it waits for this app to exit). Returns success.
+
+    ``silent``: no updater window; the app reopens by itself once pip is done
+    (also when pip fails, on the version already installed). ``background``:
+    see :func:`relaunch_command`.
+    """
     try:
         os.makedirs(UPDATER_DIR, exist_ok=True)
         # Run a copy: pip replaces the package files while the updater runs
@@ -213,7 +238,7 @@ def launch_updater() -> bool:
         command = updater_command(
             script, pid=os.getpid(), launcher=launcher_pid(), lang=DEFAULT_LANGUAGE,
             icon=icon, log=os.path.join(LOG_DIR_PATH, "updater.log"),
-            relaunch=relaunch_command(),
+            relaunch=relaunch_command(background=background), silent=silent,
         )
         logger.info(f"Starting the updater: {command}")
         _spawn_detached(command)
@@ -237,3 +262,59 @@ def _spawn_detached(command: list[str]) -> None:
                          **kwargs)
     except OSError:
         subprocess.Popen(command, creationflags=flags, **kwargs)  # pylint: disable=consider-using-with
+
+
+# Automatic updates (always on, they can't be turned off). At startup, before
+# the window and the servers, the app checks PyPI and, if there's a new
+# version, starts the updater in silent mode and exits: the updater reopens it
+# with the same options (``--background`` included), so it opens as it would
+# have, window or tray only. While the app runs it checks again every few
+# hours and updates the same way as soon as no server is running (see
+# MainWindow.periodic_update_check).
+
+AUTO_UPDATE_TIMEOUT = 3  # seconds: the window waits for this check
+
+
+def installed_as_package(module_file: str | None = None) -> bool:
+    """True if the app runs from an installed package (not a source checkout).
+
+    pip would replace an editable install with the PyPI release.
+    """
+    parts = {part.lower() for part in Path(module_file or __file__).resolve().parts}
+    return bool(parts & {"site-packages", "dist-packages"})
+
+
+def auto_update_at_startup(settings, *, latest_version: Callable[[], str | None] | None = None,
+                           launch: Callable[..., bool] | None = None) -> bool:
+    """Start the silent updater if a new version is out. True: the app must exit now.
+
+    ``settings`` is a :class:`~mcsc_gui.core.user_settings.UserSettings`.
+    Never raises: any problem just means "no update now".
+    """
+    try:
+        latest = (latest_version or (lambda: get_latest_version(AUTO_UPDATE_TIMEOUT)))()
+        if not claim_auto_update(settings, latest):
+            return False
+        return (launch or launch_updater)(silent=True)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Automatic update skipped: {e}")
+        return False
+
+
+def claim_auto_update(settings, latest: str | None) -> bool:
+    """True if the app should update itself to ``latest`` now; records the attempt.
+
+    A version is tried once: if the app is still on an older one afterwards,
+    the update failed and the user updates by hand (no update loop).
+    """
+    if latest is None or not is_newer(latest, get_current_version()):
+        return False
+    if not installed_as_package():
+        logger.info("Automatic update skipped: not running from an installed package")
+        return False
+    if settings.user_settings.get("auto_update_attempted") == latest:
+        logger.warning(f"The automatic update to {latest} already failed: not retrying")
+        return False
+    logger.info(f"Version {latest} available: updating automatically")
+    settings.update_settings(auto_update_attempted=latest)
+    return True
