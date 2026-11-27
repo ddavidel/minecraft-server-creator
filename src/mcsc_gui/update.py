@@ -17,11 +17,11 @@ import requests
 from packaging.version import InvalidVersion, Version
 
 from mcsc_gui.config.settings import (
-    DEFAULT_LANGUAGE,
     LOG_DIR_PATH,
     PACKAGE_NAME,
     PYPI_PACKAGE_URL,
 )
+from mcsc_gui.core.translations import current_language
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +236,7 @@ def launch_updater(silent: bool = False, background: bool | None = None) -> bool
             shutil.copyfile(source_icon, icon)
         os.makedirs(LOG_DIR_PATH, exist_ok=True)
         command = updater_command(
-            script, pid=os.getpid(), launcher=launcher_pid(), lang=DEFAULT_LANGUAGE,
+            script, pid=os.getpid(), launcher=launcher_pid(), lang=current_language(),
             icon=icon, log=os.path.join(LOG_DIR_PATH, "updater.log"),
             relaunch=relaunch_command(background=background), silent=silent,
         )

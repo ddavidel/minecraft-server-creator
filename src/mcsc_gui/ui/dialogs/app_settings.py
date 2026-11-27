@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 from mcsc_gui.config import settings as mcssettings
 from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core import autostart, shortcuts
-from mcsc_gui.core.translations import languages_map
+from mcsc_gui.core.translations import current_language, languages_map
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.core.user_settings import (
     AUTO_BACKUP_POLICIES,
@@ -44,6 +44,8 @@ from mcsc_gui.utils import get_static_path
 class AppSettingsDialog(OverlayDialog):
     # The user asked for the changelog: the dialog closes, the window opens it
     changelog_requested = Signal()
+    # The settings were saved (their values): the window applies them, no restart
+    saved = Signal(dict)
 
     def __init__(self, parent: QWidget, user_settings: UserSettings | None = None) -> None:
         super().__init__(parent, _("App Settings"), width=480)
@@ -68,7 +70,7 @@ class AppSettingsDialog(OverlayDialog):
         self.language = QComboBox()
         for code in mcssettings.AVAILABLE_LANGAGUES:
             self.language.addItem(languages_map.get(code, code), code)
-        index = self.language.findData(current.get("language", mcssettings.DEFAULT_LANGUAGE))
+        index = self.language.findData(current.get("language", current_language()))
         self.language.setCurrentIndex(max(0, index))
         self.body.addWidget(Field(_("Language"), self.language))
 
@@ -139,11 +141,6 @@ class AppSettingsDialog(OverlayDialog):
             shortcut_row.addWidget(self.shortcut_button)
             self.body.addLayout(shortcut_row)
 
-        self.restart_label = label(
-            _("Some settings require a restart to take effect. "
-              "Please restart the app after changing them."), "warning", wrap=True)
-        self.body.addWidget(self.restart_label)
-
         # Left of the footer, away from Close/Save
         self.changelog_button = button(_("Changelog"), "history", variant="ghost")
         self.changelog_button.clicked.connect(self.show_changelog)
@@ -192,10 +189,12 @@ class AppSettingsDialog(OverlayDialog):
             details = dict(self._settings.user_settings)
             run_task(send_event_async("settings_change", details=details), show_errors=False)
             self.accept()
+            # After closing: the window may rebuild its UI (e.g. in the new language)
+            self.saved.emit(values)
 
-        run_blocking(self._save, progress=_("Saving"),
-                     success=_("Settings saved") + ". " + _("Restart the app to apply them."),
-                     disable=[self.save_button, self.cancel_button, self.changelog_button], on_success=saved, **values)
+        run_blocking(self._save, progress=_("Saving"), success=_("Settings saved"),
+                     disable=[self.save_button, self.cancel_button, self.changelog_button],
+                     on_success=saved, **values)
 
 
 def start_with_os_text() -> str:

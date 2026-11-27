@@ -1,6 +1,6 @@
 import pytest
 
-from mcsc_gui.core import players, stats_history
+from mcsc_gui.core import players, stats_history, translations
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -16,3 +16,11 @@ def _no_stats_database():
 def _forget_players():
     yield
     players.stop_all()
+
+
+@pytest.fixture(autouse=True)
+def _english():
+    """Tests read the English texts, whatever the user's language; a test may switch it."""
+    translations.set_language("en")
+    yield
+    translations.set_language("en")

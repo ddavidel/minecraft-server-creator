@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-from PySide6.QtCore import SIGNAL
+from PySide6.QtCore import SIGNAL, Qt
 from PySide6.QtWidgets import QStackedWidget, QWidget
 
 from mcsc import Backup, BackupKind, ResourceUsage, ServerState, ServerType
@@ -477,5 +477,104 @@ def test_main_window_dashboard_menu_and_clone(qtbot, bridge, tmp_path, make_serv
                 events.server_removed.emit(server.id)
 
             window.dashboard.clone_server.emit("missing")  # ignored
+        finally:
+            events.close()
+
+
+def test_main_window_switches_language_without_restart(qtbot, bridge, tmp_path, make_server,
+                                                       prefs):
+    from mcsc import ServerManager  # pylint: disable=import-outside-toplevel
+
+    from mcsc_gui.core.translations import current_language  # pylint: disable=import-outside-toplevel
+    from mcsc_gui.ui.main_window import MainWindow  # pylint: disable=import-outside-toplevel
+
+    manager = ServerManager(tmp_path / "servers", tmp_path / "servers.json",
+                            backups_dir=tmp_path / "backups")
+    server = manager.register(make_server().config)
+    events = ServerEvents(track_registry=False)
+    events.attach(server)
+    with mock.patch.object(sm, "manager", manager):
+        window = MainWindow(events, bridge, native_title_bar=True)
+        qtbot.addWidget(window)
+        try:
+            window.navigator.to_section(server.id, BACKUPS)
+            old_sidebar = window.sidebar
+            assert window.sidebar.settings_button.text() == "App Settings"
+
+            with qtbot.waitSignal(window.ui_rebuilt):
+                window.apply_settings({"language": "it", "native_title_bar": True})
+
+            assert current_language() == "it"
+            assert window.sidebar is not old_sidebar
+            assert window.sidebar.settings_button.text() == "Impostazioni App"
+            # Same page, in the new language
+            assert window.navigator.current_route == Route(BACKUPS, (server.id,))
+            assert isinstance(window.navigator.current_page, ServerBackupsPage)
+            assert window.sidebar.section_buttons[BACKUPS].isChecked()
+            assert window.title_bar.title_label.text() == "Test · Backup"
+            window.navigator.back()
+            assert window.navigator.current_route == Route(DASHBOARD)
+
+            # Nothing changed: no rebuild
+            sidebar = window.sidebar
+            window.apply_settings({"language": "it", "native_title_bar": True})
+            assert window.sidebar is sidebar
+        finally:
+            events.close()
+
+
+def test_main_window_rebuild_waits_for_unsaved_changes(qtbot, bridge, tmp_path, make_server,
+                                                       prefs):
+    from mcsc import ServerManager  # pylint: disable=import-outside-toplevel
+
+    from mcsc_gui.ui.main_window import MainWindow  # pylint: disable=import-outside-toplevel
+
+    manager = ServerManager(tmp_path / "servers", tmp_path / "servers.json",
+                            backups_dir=tmp_path / "backups")
+    server = manager.register(make_server().config)
+    events = ServerEvents(track_registry=False)
+    events.attach(server)
+    with mock.patch.object(sm, "manager", manager):
+        window = MainWindow(events, bridge, native_title_bar=True)
+        qtbot.addWidget(window)
+        try:
+            window.navigator.to_section(server.id, CONFIGURATION)
+            window.navigator.to_editor(server.id, "server.properties")
+            editor = window.navigator.current_page
+            editor._set_dirty(True)  # pylint: disable=protected-access
+            sidebar = window.sidebar
+
+            window.apply_settings({"language": "it"})
+            # The unsaved changes stay on screen
+            assert window.sidebar is sidebar
+            assert window.navigator.current_page is editor
+
+            editor._set_dirty(False)  # pylint: disable=protected-access
+            with qtbot.waitSignal(window.ui_rebuilt, timeout=2000):
+                window.navigator.back()
+            assert window.sidebar.settings_button.text() == "Impostazioni App"
+            assert window.navigator.current_route == Route(CONFIGURATION, (server.id,))
+        finally:
+            events.close()
+
+
+def test_main_window_switches_title_bar_without_restart(qtbot, bridge, tmp_path, prefs):
+    from mcsc import ServerManager  # pylint: disable=import-outside-toplevel
+
+    from mcsc_gui.ui.main_window import MainWindow  # pylint: disable=import-outside-toplevel
+
+    manager = ServerManager(tmp_path / "servers", tmp_path / "servers.json",
+                            backups_dir=tmp_path / "backups")
+    events = ServerEvents(track_registry=False)
+    with mock.patch.object(sm, "manager", manager):
+        window = MainWindow(events, bridge, native_title_bar=True)
+        qtbot.addWidget(window)
+        window.show()
+        try:
+            assert not window.title_bar.close_button.isVisibleTo(window)
+            window.apply_settings({"native_title_bar": False})
+            assert window.isVisible()
+            assert window.windowFlags() & Qt.WindowType.FramelessWindowHint
+            assert window.title_bar.close_button.isVisibleTo(window)
         finally:
             events.close()
