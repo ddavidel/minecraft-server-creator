@@ -48,6 +48,8 @@ class SessionEndHandler(QObject):
         app.aboutToQuit.connect(self.on_about_to_quit)
         events.state_changed.connect(self.refresh_block)
         events.busy_changed.connect(self.refresh_block)
+        # New native window (title bar changed) or new language: block again
+        window.ui_rebuilt.connect(self.refresh_block)
 
     def refresh_block(self, *_args) -> None:
         """Block the OS shutdown only while there's something to stop safely."""

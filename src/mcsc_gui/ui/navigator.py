@@ -112,6 +112,14 @@ class Navigator(QObject):
         if self.current_route.kind != DASHBOARD:
             self._go(self.current_route, mode="replace", force=True)
 
+    def dispose(self) -> None:
+        """Destroy the current page (if not the dashboard): the navigator is being replaced."""
+        if self._anim is not None:
+            self._anim.stop()
+        page = self.current_page
+        if page is not None and page is not self._dashboard:
+            self._destroy(page)
+
     # ------------------------------------------------------------ internals
 
     def _go(self, route: Route, *, mode: str, force: bool = False) -> None:
