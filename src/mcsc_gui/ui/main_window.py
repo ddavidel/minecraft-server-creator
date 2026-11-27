@@ -33,7 +33,7 @@ from mcsc_gui.core.changelog import load_changelog
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.core.user_settings import DEFAULT_CLOSE_TO_TRAY, UserSettings
 from mcsc_gui.telemetry import send_event_async
-from mcsc_gui.update import get_current_version, launch_updater
+from mcsc_gui.update import claim_auto_update, get_current_version, is_newer, launch_updater
 from mcsc_gui.ui.dialogs.app_settings import AppSettingsDialog
 from mcsc_gui.ui.dialogs.clone_server import CloneServerDialog
 from mcsc_gui.ui.dialogs.confirm_quit import ConfirmQuitDialog, ShutdownDialog
@@ -41,7 +41,11 @@ from mcsc_gui.ui.dialogs.create_server import CreateServerDialog
 from mcsc_gui.ui.dialogs.delete_server import DeleteServerDialog
 from mcsc_gui.ui.dialogs.import_server import ImportServerDialog
 from mcsc_gui.ui.dialogs.shortcut import ShortcutPromptDialog, mark_prompt_shown, should_prompt
-from mcsc_gui.ui.dialogs.update_app import UpdateAppDialog, safe_check_for_updates
+from mcsc_gui.ui.dialogs.update_app import (
+    UpdateAppDialog,
+    safe_check_for_updates,
+    safe_latest_version,
+)
 from mcsc_gui.ui.dialogs.whats_new import WhatsNewDialog, mark_seen, startup_notes
 from mcsc_gui.ui.navigator import (
     BACKUPS,
@@ -87,6 +91,7 @@ MINIMUM_SIZE = (1000, 640)
 TELEMETRY_CLOSE_TIMEOUT = 6  # seconds
 BACKUP_CLOSE_TIMEOUT = 600  # extra seconds to quit when servers are backed up on stop
 STARTUP_PROMPTS_DELAY_MS = 800
+UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000  # the app may stay open (in the tray) for days
 
 
 async def _shutdown_servers() -> None:
@@ -112,6 +117,12 @@ class MainWindow(QMainWindow):
         self._shutting_down = False
         self._quit_ready = False
         self._update_on_exit = False
+        self._silent_update = False  # automatic update: no updater window
+        self._update_in_background = False  # reopen in the tray only
+        self._notified_version: str | None = None  # "Update available" shown once per version
+        self._update_timer = QTimer(self)
+        self._update_timer.setInterval(UPDATE_CHECK_INTERVAL_MS)
+        self._update_timer.timeout.connect(self.periodic_update_check)
         self._prompts_pending = False
         self._prompts_done = False
         self.tray = None  # TrayIcon, see attach_tray
@@ -361,9 +372,52 @@ class MainWindow(QMainWindow):
     # ----------------------------------------------------------- updates
 
     def start_update_check(self) -> None:
-        """Check PyPI in the background at startup (never blocks, never fails)."""
-        run_blocking(safe_check_for_updates, on_success=self._set_update_available,
+        """Check PyPI now and then every few hours (never blocks, never fails)."""
+        self.periodic_update_check()
+        self._update_timer.start()
+
+    def periodic_update_check(self) -> None:
+        if self._shutting_down:
+            return
+        run_blocking(safe_latest_version, on_success=self._on_latest_version,
                      show_errors=False)
+
+    def _on_latest_version(self, latest: str | None) -> None:
+        """A new version: notify once, then install it if nothing is running."""
+        if self._shutting_down or not latest or not is_newer(latest, get_current_version()):
+            return
+        first_time = latest != self._notified_version
+        self._notified_version = latest
+        self._set_update_available(True, notify=first_time)
+        self.install_update_when_idle(latest)
+
+    def can_update_now(self) -> bool:
+        """Updating closes the app: only when it interrupts nothing."""
+        if self._shutting_down or sm.any_server_active() or sm.any_operation_running():
+            return False
+        if self.auto_start_future is not None and not self.auto_start_future.done():
+            return False  # servers starting with the app
+        page = self.navigator.current_page
+        if hasattr(page, "can_leave") and not page.can_leave():
+            return False  # unsaved changes
+        return not any(dialog.isVisible() for dialog in self.findChildren(OverlayDialog))
+
+    def install_update_when_idle(self, latest: str) -> bool:
+        """Close and update silently to ``latest``; else retried at the next check."""
+        if not self.can_update_now():
+            logger.info(f"Version {latest} available: updating when no server is running")
+            return False
+        try:
+            if not claim_auto_update(UserSettings(), latest):
+                return False
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("Can't start the automatic update")
+            return False
+        self._silent_update = True
+        # Reopen as it is now: in the tray if the window is hidden
+        self._update_in_background = self.tray is not None and not self.isVisible()
+        self._shutdown(update=True)
+        return True
 
     def _set_update_available(self, available: bool, notify: bool = True) -> None:
         self._update_available = bool(available)
@@ -557,8 +611,13 @@ class MainWindow(QMainWindow):
         self._quit_ready = True
         if self.tray is not None:
             self.tray.hide()
-        if self._update_on_exit and not launch_updater():
+        if self._update_on_exit and not self._launch_updater():
             logger.error("The updater didn't start: the app closes without updating")
         self.events.close()
         self.close()
         QApplication.quit()
+
+    def _launch_updater(self) -> bool:
+        if self._silent_update:
+            return launch_updater(silent=True, background=self._update_in_background)
+        return launch_updater()

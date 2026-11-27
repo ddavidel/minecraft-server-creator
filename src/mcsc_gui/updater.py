@@ -10,6 +10,10 @@ The updater:
 2. runs ``pip install --upgrade`` showing pip's output in a small window;
 3. reopens the app when the user clicks the button.
 
+With ``--silent`` (automatic update at startup) there is no window: the
+updater reopens the app as soon as pip is done, also when pip fails, so the
+app always opens, on the new version or on the one already installed.
+
 It must only use the standard library: it never imports ``mcsc_gui`` or
 PySide6, otherwise it would keep open the very files pip has to replace. The
 window is drawn with tkinter, which lives in the Python installation and is
@@ -207,6 +211,7 @@ class UpdateJob:
         self.tr = tr
         self.log = log
         self.events: queue.Queue[tuple[str, str]] = queue.Queue()
+        self.timed_out = False  # the app never closed: don't reopen it
 
     def start(self) -> None:
         threading.Thread(target=self.run, daemon=True).start()
@@ -219,6 +224,7 @@ class UpdateJob:
         self.emit("status", tr("Waiting for the app to close…"))
         if not wait_for_pids(self.args.wait_pid or []):
             self.log.write("Timed out waiting for the app to close")
+            self.timed_out = True
             self.emit("failed", tr("The app is still running. Close it and try again."))
             return
 
@@ -404,7 +410,7 @@ class UpdaterWindow:  # pragma: no cover - needs a display
 
 
 def run_headless(args: argparse.Namespace, tr: Translator, log: Log) -> int:
-    """Fallback when tkinter isn't installed: update, then reopen the app."""
+    """No window (``--silent``, or no tkinter): update, then reopen the app."""
     job = UpdateJob(args, tr, log)
     job.run()
     ok = False
@@ -413,6 +419,8 @@ def run_headless(args: argparse.Namespace, tr: Translator, log: Log) -> int:
         if kind in ("status", "line", "done", "failed"):
             print(text)
         ok = ok or kind == "done"
+    if job.timed_out:  # still running: reopening it would only bring it to the front
+        return 1
     try:
         relaunch(args.relaunch)
     except OSError as e:
@@ -431,6 +439,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--lang", default="en")
     parser.add_argument("--icon")
     parser.add_argument("--log")
+    parser.add_argument("--silent", action="store_true",
+                        help="no window: reopen the app as soon as the update is done")
     return parser.parse_args(argv)
 
 
@@ -438,7 +448,10 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - needs a di
     args = parse_args(argv)
     tr = Translator(args.lang)
     log = Log(args.log)
-    log.write(f"Updater started: {args.package} (waiting for {args.wait_pid})")
+    log.write(f"Updater started: {args.package} (waiting for {args.wait_pid})"
+              f"{' silently' if args.silent else ''}")
+    if args.silent:
+        return run_headless(args, tr, log)
     try:
         window = UpdaterWindow(args, tr, log)
     except Exception as e:  # pylint: disable=broad-exception-caught
