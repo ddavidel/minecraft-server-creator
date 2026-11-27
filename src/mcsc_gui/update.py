@@ -280,7 +280,9 @@ def installed_as_package(module_file: str | None = None) -> bool:
 
     pip would replace an editable install with the PyPI release.
     """
-    parts = {part.lower() for part in Path(module_file or __file__).resolve().parts}
+    path = module_file or str(Path(__file__).resolve())
+    # PureWindowsPath splits on both "\" and "/", whatever the OS the check runs on
+    parts = {part.lower() for part in PureWindowsPath(path).parts}
     return bool(parts & {"site-packages", "dist-packages"})
 
 
