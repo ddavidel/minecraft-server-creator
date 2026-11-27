@@ -20,6 +20,10 @@ class FakeEvents(QObject):
     busy_changed = Signal(str)
 
 
+class FakeWindow(QWidget):
+    ui_rebuilt = Signal()
+
+
 class FakeBlocker:
     supported = True
 
@@ -36,7 +40,7 @@ class FakeBlocker:
 
 @pytest.fixture
 def setup(qtbot):
-    window = QWidget()
+    window = FakeWindow()
     qtbot.addWidget(window)
     window.quit_ready = False
     app, events, blocker = FakeApp(), FakeEvents(), FakeBlocker()
@@ -79,3 +83,12 @@ def test_shutdown_is_blocked_only_while_busy(setup):
     busy["value"] = False
     events.busy_changed.emit("srv")
     assert blocker.hwnd is None
+
+
+def test_block_is_renewed_when_the_window_is_rebuilt(setup):
+    handler, _app, _events, blocker, busy, _calls = setup
+    busy["value"] = True
+    handler.refresh_block()
+    blocker.reason = "old language"
+    handler.window.ui_rebuilt.emit()
+    assert blocker.reason != "old language"

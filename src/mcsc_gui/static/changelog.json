@@ -2,6 +2,21 @@
   "schema": 1,
   "releases": [
     {
+      "version": "3.2.2",
+      "highlights": {
+        "en": [
+          "Automatic updates: MCSC installs new versions by itself, at startup or when no server is running, and reopens just as it was. No more clicking Update",
+          "Fixed the update check: some new versions weren't detected",
+          "Changing the language or the title bar in the App Settings now applies right away, without restarting the app"
+        ],
+        "it": [
+          "Aggiornamenti automatici: MCSC installa da solo le nuove versioni, all'avvio o quando nessun server è acceso, e si riapre com'era. Non serve più cliccare su Aggiorna",
+          "Corretto il controllo degli aggiornamenti: alcune nuove versioni non venivano rilevate",
+          "Il cambio di lingua o della barra del titolo nelle Impostazioni dell'app ora ha effetto subito, senza riavviare l'app"
+        ]
+      }
+    },
+    {
       "version": "3.2.1",
       "highlights": {
         "en": [

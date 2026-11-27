@@ -198,6 +198,100 @@ def test_update_notice_goes_to_the_tray_while_hidden(window):
     tray.notify.assert_called_once_with("Update available")
 
 
+# ------------------------------------------------------ automatic updates
+
+
+@pytest.fixture
+def updating(window, monkeypatch):
+    """The window with a new version out, PyPI faked and _shutdown recorded."""
+    from mcsc_gui.ui import main_window as mw  # pylint: disable=import-outside-toplevel
+
+    monkeypatch.setattr(mw, "get_current_version", lambda: "3.2.1")
+    claim = mock.Mock(return_value=True)
+    monkeypatch.setattr(mw, "claim_auto_update", claim)
+    window.shutdowns = []
+    monkeypatch.setattr(window, "_shutdown", lambda **kw: window.shutdowns.append(kw))
+    window.claim = claim
+    return window
+
+
+def test_update_check_repeats_every_six_hours(updating, monkeypatch):
+    from mcsc_gui.ui import main_window as mw  # pylint: disable=import-outside-toplevel
+
+    checks = []
+    monkeypatch.setattr(updating, "periodic_update_check", lambda: checks.append(1))
+    updating._update_timer.timeout.disconnect()  # pylint: disable=protected-access
+    updating._update_timer.timeout.connect(updating.periodic_update_check)  # pylint: disable=protected-access
+    updating.start_update_check()
+    assert checks == [1]
+    assert updating._update_timer.isActive()  # pylint: disable=protected-access
+    assert updating._update_timer.interval() == mw.UPDATE_CHECK_INTERVAL_MS == 6 * 3600 * 1000  # pylint: disable=protected-access
+    updating._update_timer.timeout.emit()  # pylint: disable=protected-access
+    assert checks == [1, 1]
+
+
+def test_new_version_while_idle_updates_silently_in_the_tray(updating):
+    tray = attach_fake_tray(updating)  # window hidden in the tray
+    updating._on_latest_version("3.3.0")  # pylint: disable=protected-access
+    tray.notify.assert_called_once_with("Update available")
+    assert updating.shutdowns == [{"update": True}]
+    assert updating._silent_update and updating._update_in_background  # pylint: disable=protected-access
+    assert updating.claim.call_args.args[1] == "3.3.0"
+
+
+def test_silent_update_reopens_with_the_window_if_it_was_open(updating, qtbot):
+    updating.show()
+    qtbot.waitExposed(updating)
+    attach_fake_tray(updating)
+    updating._on_latest_version("3.3.0")  # pylint: disable=protected-access
+    assert updating.shutdowns == [{"update": True}]
+    assert not updating._update_in_background  # pylint: disable=protected-access
+
+
+def test_running_servers_postpone_the_update_and_notify_once(updating, monkeypatch):
+    tray = attach_fake_tray(updating)
+    monkeypatch.setattr(sm, "any_server_active", lambda: True)
+    updating._on_latest_version("3.3.0")  # pylint: disable=protected-access
+    updating._on_latest_version("3.3.0")  # six hours later, still playing
+    assert updating.shutdowns == []
+    updating.claim.assert_not_called()
+    tray.notify.assert_called_once()  # not every six hours
+
+    monkeypatch.setattr(sm, "any_server_active", lambda: False)
+    updating._on_latest_version("3.3.0")  # servers stopped: now it updates
+    assert updating.shutdowns == [{"update": True}]
+
+
+def test_no_update_when_up_to_date_offline_or_already_failed(updating):
+    attach_fake_tray(updating)
+    for latest in (None, "3.2.1", "3.2.0"):
+        updating._on_latest_version(latest)  # pylint: disable=protected-access
+    updating.claim.assert_not_called()
+
+    updating.claim.return_value = False  # this version already failed once
+    updating._on_latest_version("3.3.0")  # pylint: disable=protected-access
+    assert updating.shutdowns == []
+    assert updating._update_available  # pylint: disable=protected-access  # manual update still offered
+
+
+def test_open_dialog_postpones_the_update(updating):
+    from mcsc_gui.ui.dialogs.update_app import UpdateAppDialog  # pylint: disable=import-outside-toplevel
+
+    updating.show()
+    updating.open_dialog(UpdateAppDialog(updating))
+    assert not updating.can_update_now()
+
+
+def test_silent_update_launches_the_updater_without_window(updating, monkeypatch):
+    from mcsc_gui.ui import main_window as mw  # pylint: disable=import-outside-toplevel
+
+    launch = mock.Mock(return_value=True)
+    monkeypatch.setattr(mw, "launch_updater", launch)
+    updating._silent_update, updating._update_in_background = True, True  # pylint: disable=protected-access
+    assert updating._launch_updater()  # pylint: disable=protected-access
+    launch.assert_called_once_with(silent=True, background=True)
+
+
 # ------------------------------------------------------------- app settings
 
 

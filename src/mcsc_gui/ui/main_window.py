@@ -2,6 +2,10 @@
 Main window: frameless (unless the native title bar is enabled), with
 TitleBar + Sidebar + page stack + toasts, and the safe shutdown sequence.
 
+The sidebar, title bar and pages (the "shell") are rebuilt when the language or
+the title bar setting changes (:meth:`MainWindow.apply_settings`): every text is
+translated again and no restart is needed. Toasts and dialogs are kept.
+
 With a tray icon attached (:meth:`MainWindow.attach_tray`) closing the window
 only hides it (setting ``close_to_tray``): the app and its servers keep running
 until the user quits from the tray.
@@ -12,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from PySide6.QtCore import QEvent, Qt, QTimer
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QIcon, QKeySequence, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -30,10 +34,11 @@ from mcsc_gui.core import server_manager as sm
 from mcsc_gui.core import session
 from mcsc_gui.core.async_bridge import AsyncBridge
 from mcsc_gui.core.changelog import load_changelog
+from mcsc_gui.core.translations import current_language, set_language
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.core.user_settings import DEFAULT_CLOSE_TO_TRAY, UserSettings
 from mcsc_gui.telemetry import send_event_async
-from mcsc_gui.update import get_current_version, launch_updater
+from mcsc_gui.update import claim_auto_update, get_current_version, is_newer, launch_updater
 from mcsc_gui.ui.dialogs.app_settings import AppSettingsDialog
 from mcsc_gui.ui.dialogs.clone_server import CloneServerDialog
 from mcsc_gui.ui.dialogs.confirm_quit import ConfirmQuitDialog, ShutdownDialog
@@ -41,7 +46,11 @@ from mcsc_gui.ui.dialogs.create_server import CreateServerDialog
 from mcsc_gui.ui.dialogs.delete_server import DeleteServerDialog
 from mcsc_gui.ui.dialogs.import_server import ImportServerDialog
 from mcsc_gui.ui.dialogs.shortcut import ShortcutPromptDialog, mark_prompt_shown, should_prompt
-from mcsc_gui.ui.dialogs.update_app import UpdateAppDialog, safe_check_for_updates
+from mcsc_gui.ui.dialogs.update_app import (
+    UpdateAppDialog,
+    safe_check_for_updates,
+    safe_latest_version,
+)
 from mcsc_gui.ui.dialogs.whats_new import WhatsNewDialog, mark_seen, startup_notes
 from mcsc_gui.ui.navigator import (
     BACKUPS,
@@ -87,6 +96,7 @@ MINIMUM_SIZE = (1000, 640)
 TELEMETRY_CLOSE_TIMEOUT = 6  # seconds
 BACKUP_CLOSE_TIMEOUT = 600  # extra seconds to quit when servers are backed up on stop
 STARTUP_PROMPTS_DELAY_MS = 800
+UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000  # the app may stay open (in the tray) for days
 
 
 async def _shutdown_servers() -> None:
@@ -102,6 +112,9 @@ async def _shutdown_servers() -> None:
 
 
 class MainWindow(QMainWindow):
+    # The shell was rebuilt (new language or title bar): the native window may be new too
+    ui_rebuilt = Signal()
+
     def __init__(self, events: ServerEvents, bridge: AsyncBridge, *,
                  native_title_bar: bool = False) -> None:
         super().__init__()
@@ -112,51 +125,86 @@ class MainWindow(QMainWindow):
         self._shutting_down = False
         self._quit_ready = False
         self._update_on_exit = False
+        self._silent_update = False  # automatic update: no updater window
+        self._update_in_background = False  # reopen in the tray only
+        self._notified_version: str | None = None  # "Update available" shown once per version
+        self._update_timer = QTimer(self)
+        self._update_timer.setInterval(UPDATE_CHECK_INTERVAL_MS)
+        self._update_timer.timeout.connect(self.periodic_update_check)
         self._prompts_pending = False
         self._prompts_done = False
         self.tray = None  # TrayIcon, see attach_tray
         # Servers started automatically at startup: cancelled when the app quits
         self.auto_start_future = None
 
+        self._rebuild_pending = False  # the current page has unsaved changes
         self.setWindowTitle(APP_TITLE)
         self.setWindowIcon(QIcon(str(get_static_path("logo.ico"))))
         self.resize(*DEFAULT_SIZE)
         self.setMinimumSize(*MINIMUM_SIZE)
         if not native_title_bar:
-            self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint
-                                | Qt.WindowType.WindowMinMaxButtonsHint)
+            self.setWindowFlags(self._window_flags())
 
+        # The root hosts the shell, the toasts and the dialogs: only the shell is rebuilt
         root = QWidget(self)
         root.setObjectName("Root")
         self.setCentralWidget(root)
-        layout = QHBoxLayout(root)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        self.sidebar = Sidebar(root)
-        layout.addWidget(self.sidebar)
-
-        content = QVBoxLayout()
-        content.setContentsMargins(0, 0, 0, 0)
-        content.setSpacing(0)
-        self.title_bar = TitleBar(root, window_buttons=not native_title_bar)
-        content.addWidget(self.title_bar)
-        self.stack = QStackedWidget(root)
-        self.stack.setObjectName("Pages")
-        content.addWidget(self.stack, 1)
-        layout.addLayout(content, 1)
+        self._root_layout = QHBoxLayout(root)
+        self._root_layout.setContentsMargins(0, 0, 0, 0)
+        self._root_layout.setSpacing(0)
 
         self.size_grip = QSizeGrip(root)
         self.size_grip.setFixedSize(16, 16)
         self.size_grip.setVisible(not native_title_bar)
 
         self.toasts = ToastManager(root)
+        self._shell: QWidget | None = None
+        self._build_shell()
 
-        self.dashboard = DashboardPage(events)
-        self.navigator = Navigator(self.stack, self.dashboard, self._create_page, self)
+        for signal in (events.state_changed, events.server_updated, events.busy_changed):
+            signal.connect(lambda server_id, *_args: self.sidebar.refresh_server(server_id))
+        events.server_removed.connect(self._on_server_removed)
+
+        # Lambdas: the navigator is replaced when the shell is rebuilt
+        QShortcut(QKeySequence("Ctrl+N"), self, activated=self.open_create_dialog)
+        QShortcut(QKeySequence("Alt+Left"), self, activated=lambda: self.navigator.back())
+        QShortcut(QKeySequence(QKeySequence.StandardKey.Back), self,
+                  activated=lambda: self.navigator.back())
+
+    def _window_flags(self) -> Qt.WindowType:
+        if self.native_title_bar:
+            return Qt.WindowType.Window
+        return (Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint
+                | Qt.WindowType.WindowMinMaxButtonsHint)
+
+    # ------------------------------------------------------------- shell
+
+    def _build_shell(self) -> None:
+        """Sidebar, title bar, page stack and dashboard, with their texts translated now."""
+        root = self.centralWidget()
+        shell = QWidget(root)
+        shell.setObjectName("Shell")
+        layout = QHBoxLayout(shell)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.sidebar = Sidebar(shell)
+        layout.addWidget(self.sidebar)
+
+        content = QVBoxLayout()
+        content.setContentsMargins(0, 0, 0, 0)
+        content.setSpacing(0)
+        self.title_bar = TitleBar(shell, window_buttons=not self.native_title_bar)
+        content.addWidget(self.title_bar)
+        self.stack = QStackedWidget(shell)
+        self.stack.setObjectName("Pages")
+        content.addWidget(self.stack, 1)
+        layout.addLayout(content, 1)
+
+        self.dashboard = DashboardPage(self.events)
+        self.navigator = Navigator(self.stack, self.dashboard, self._create_page, shell)
         self.navigator.page_changed.connect(self._on_page_changed)
 
-        # ------------------------------------------------------------ wiring
         self.dashboard.open_server.connect(self.navigator.to_server)
         self.dashboard.new_server_requested.connect(self.open_create_dialog)
         self.dashboard.import_server_requested.connect(self.open_import_dialog)
@@ -166,8 +214,6 @@ class MainWindow(QMainWindow):
         self.dashboard.delete_server.connect(self._delete_from_dashboard)
         self.sidebar.dashboard_clicked.connect(self.navigator.to_dashboard)
         self.sidebar.section_clicked.connect(self.navigator.to_section)
-        for signal in (events.state_changed, events.server_updated, events.busy_changed):
-            signal.connect(lambda server_id, *_args: self.sidebar.refresh_server(server_id))
         self.sidebar.new_server_clicked.connect(self.open_create_dialog)
         self.sidebar.updates_clicked.connect(self.on_updates_clicked)
         self.sidebar.settings_clicked.connect(self.open_settings_dialog)
@@ -175,14 +221,78 @@ class MainWindow(QMainWindow):
         self.title_bar.minimize_requested.connect(self.showMinimized)
         self.title_bar.maximize_requested.connect(self.toggle_maximized)
         self.title_bar.close_requested.connect(self.close_by_user)
-        events.server_removed.connect(self._on_server_removed)
+        self.title_bar.set_maximized(self.isMaximized())
+        if self._update_available:
+            self.sidebar.set_update_available(True)
 
-        QShortcut(QKeySequence("Ctrl+N"), self, activated=self.open_create_dialog)
-        QShortcut(QKeySequence("Alt+Left"), self, activated=self.navigator.back)
-        QShortcut(QKeySequence(QKeySequence.StandardKey.Back), self,
-                  activated=self.navigator.back)
-
+        self._root_layout.addWidget(shell)
+        shell.lower()  # under the toasts, the size grip and any open dialog
+        shell.show()  # now, not at the next event loop pass (the window may be visible)
+        self._shell = shell
         self._on_page_changed(DASHBOARD)
+
+    def rebuild_ui(self) -> None:
+        """Rebuild the shell (e.g. in the new language) and reopen the current page.
+
+        A page with unsaved changes is kept: the rebuild happens once it's left.
+        """
+        if self._shutting_down:
+            return
+        page = self.navigator.current_page
+        if hasattr(page, "can_leave") and not page.can_leave():
+            self._rebuild_pending = True
+            return
+        self._rebuild_pending = False
+        route = self.navigator.current_route
+        old_shell = self._shell
+        self.navigator.dispose()
+        old_shell.hide()
+        self._root_layout.removeWidget(old_shell)
+        old_shell.deleteLater()  # the dashboard and the navigator with it
+        self._build_shell()
+        self._restore_route(route)
+        self.ui_rebuilt.emit()
+
+    def _restore_route(self, route: Route) -> None:
+        section = section_of(route)
+        if section is None or not route.args or sm.find_server(route.args[0]) is None:
+            return
+        server_id = route.args[0]
+        self.navigator.to_section(server_id, section)
+        if route.kind == EDITOR:
+            self.navigator.to_editor(server_id, route.args[1])
+
+    def apply_settings(self, values: dict) -> None:
+        """Apply the saved app settings that change the UI: language and title bar."""
+        language = values.get("language") or current_language()
+        native = bool(values.get("native_title_bar", self.native_title_bar))
+        language_changed = language != current_language()
+        title_bar_changed = native != self.native_title_bar
+        if language_changed:
+            set_language(language)
+            if self.tray is not None:
+                self.tray.refresh()
+        if title_bar_changed:
+            self._set_native_title_bar(native)
+        if language_changed or title_bar_changed:
+            self.rebuild_ui()
+
+    def _set_native_title_bar(self, native: bool) -> None:
+        self.native_title_bar = native
+        visible, maximized = self.isVisible(), self.isMaximized()
+        geometry = self.geometry()  # the content area, without the frame
+        self.setWindowFlags(self._window_flags())  # hides the window: show it again
+        self.size_grip.setVisible(not native and not maximized)
+        if visible:
+            if maximized:
+                self.showMaximized()
+            else:
+                self.show()
+                # Windows keeps the outer size when the frame comes back: the content
+                # area shrinks while Qt still lays it out at the old size (cut off).
+                # Set the content area again so the frame is added around it.
+                self.setGeometry(geometry.adjusted(0, 0, 0, 1))
+                self.setGeometry(geometry)
 
     # ------------------------------------------------------------- pages
 
@@ -217,6 +327,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(APP_TITLE if dashboard else f"{title} — {APP_TITLE}")
 
     def _on_page_changed(self, kind: str) -> None:
+        if self._rebuild_pending:
+            # The page with unsaved changes was left: rebuild now (not inside the navigation)
+            QTimer.singleShot(0, self._rebuild_if_pending)
         page = self.navigator.current_page
         self._set_title(page.page_title() if hasattr(page, "page_title") else _("Dashboard"))
         self.title_bar.set_back_visible(self.navigator.can_go_back)
@@ -228,6 +341,10 @@ class MainWindow(QMainWindow):
         else:
             self.sidebar.show_app_menu()
             self.sidebar.set_active("dashboard" if kind == DASHBOARD else None)
+
+    def _rebuild_if_pending(self) -> None:
+        if self._rebuild_pending:
+            self.rebuild_ui()
 
     def _on_server_removed(self, server_id: str) -> None:
         route = self.navigator.current_route
@@ -288,6 +405,7 @@ class MainWindow(QMainWindow):
     def open_settings_dialog(self) -> None:
         dialog = AppSettingsDialog(self)
         dialog.changelog_requested.connect(self.open_changelog_dialog)
+        dialog.saved.connect(self.apply_settings)
         self.open_dialog(dialog)
 
     def open_changelog_dialog(self) -> None:
@@ -361,9 +479,52 @@ class MainWindow(QMainWindow):
     # ----------------------------------------------------------- updates
 
     def start_update_check(self) -> None:
-        """Check PyPI in the background at startup (never blocks, never fails)."""
-        run_blocking(safe_check_for_updates, on_success=self._set_update_available,
+        """Check PyPI now and then every few hours (never blocks, never fails)."""
+        self.periodic_update_check()
+        self._update_timer.start()
+
+    def periodic_update_check(self) -> None:
+        if self._shutting_down:
+            return
+        run_blocking(safe_latest_version, on_success=self._on_latest_version,
                      show_errors=False)
+
+    def _on_latest_version(self, latest: str | None) -> None:
+        """A new version: notify once, then install it if nothing is running."""
+        if self._shutting_down or not latest or not is_newer(latest, get_current_version()):
+            return
+        first_time = latest != self._notified_version
+        self._notified_version = latest
+        self._set_update_available(True, notify=first_time)
+        self.install_update_when_idle(latest)
+
+    def can_update_now(self) -> bool:
+        """Updating closes the app: only when it interrupts nothing."""
+        if self._shutting_down or sm.any_server_active() or sm.any_operation_running():
+            return False
+        if self.auto_start_future is not None and not self.auto_start_future.done():
+            return False  # servers starting with the app
+        page = self.navigator.current_page
+        if hasattr(page, "can_leave") and not page.can_leave():
+            return False  # unsaved changes
+        return not any(dialog.isVisible() for dialog in self.findChildren(OverlayDialog))
+
+    def install_update_when_idle(self, latest: str) -> bool:
+        """Close and update silently to ``latest``; else retried at the next check."""
+        if not self.can_update_now():
+            logger.info(f"Version {latest} available: updating when no server is running")
+            return False
+        try:
+            if not claim_auto_update(UserSettings(), latest):
+                return False
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("Can't start the automatic update")
+            return False
+        self._silent_update = True
+        # Reopen as it is now: in the tray if the window is hidden
+        self._update_in_background = self.tray is not None and not self.isVisible()
+        self._shutdown(update=True)
+        return True
 
     def _set_update_available(self, available: bool, notify: bool = True) -> None:
         self._update_available = bool(available)
@@ -557,8 +718,13 @@ class MainWindow(QMainWindow):
         self._quit_ready = True
         if self.tray is not None:
             self.tray.hide()
-        if self._update_on_exit and not launch_updater():
+        if self._update_on_exit and not self._launch_updater():
             logger.error("The updater didn't start: the app closes without updating")
         self.events.close()
         self.close()
         QApplication.quit()
+
+    def _launch_updater(self) -> bool:
+        if self._silent_update:
+            return launch_updater(silent=True, background=self._update_in_background)
+        return launch_updater()

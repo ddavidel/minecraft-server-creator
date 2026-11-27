@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QWidget
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.ui.widgets.common import button, label
 from mcsc_gui.ui.widgets.overlay_dialog import OverlayDialog
-from mcsc_gui.update import check_for_updates
+from mcsc_gui.update import check_for_updates, get_latest_version
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,15 @@ def safe_check_for_updates() -> bool:
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Can't check for updates: {e}")
         return False
+
+
+def safe_latest_version() -> str | None:
+    """The latest version on PyPI, None if it can't be checked (never raises)."""
+    try:
+        return get_latest_version()
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Can't check for updates: {e}")
+        return None
 
 
 class UpdateAppDialog(OverlayDialog):

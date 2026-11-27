@@ -12,8 +12,8 @@ from PySide6.QtCore import QDate, QLocale, Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QVBoxLayout, QWidget
 
-from mcsc_gui.config import settings as mcssettings
 from mcsc_gui.core.changelog import ReleaseNote, notes_between, parse_version
+from mcsc_gui.core.translations import current_language
 from mcsc_gui.core.translations import translate as _
 from mcsc_gui.core.user_settings import UserSettings
 from mcsc_gui.ui.theme.tokens import TOKENS
@@ -84,7 +84,7 @@ class WhatsNewDialog(OverlayDialog):
                  language: str | None = None) -> None:
         super().__init__(parent, title or _("What's New"), width=PANEL_WIDTH)
         self.notes = list(notes)
-        self._language = language or mcssettings.DEFAULT_LANGUAGE
+        self._language = language or current_language()
         s = TOKENS.spacing
 
         self.scroll: QScrollArea | None = None

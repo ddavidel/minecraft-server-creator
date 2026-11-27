@@ -20,9 +20,11 @@ USER_SETTINGS_PATH = os.path.join(user_data_dir("mcsc"), "config", "user_setting
 # start_with_os: start the app (in the tray) at login; see mcsc_gui.core.autostart
 # close_to_tray: closing the window hides it in the system tray instead of quitting
 # tray_hint_shown: the "still running in the tray" notification was already shown once
+# auto_update_attempted: the last version the automatic update (always on) tried to install
 KNOWN_SETTINGS = [
     "language", "native_title_bar", "shortcut_prompt_shown", "auto_backup", "backup_retention",
     "last_seen_version", "start_with_os", "close_to_tray", "tray_hint_shown",
+    "auto_update_attempted",
 ]
 
 # Use the OS title bar unless the user opts into the custom one
@@ -74,6 +76,7 @@ TYPES_CONVERTION = {
     "start_with_os": _to_bool,
     "close_to_tray": _to_bool,
     "tray_hint_shown": _to_bool,
+    "auto_update_attempted": str,
 }
 
 

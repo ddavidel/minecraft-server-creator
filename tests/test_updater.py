@@ -155,3 +155,135 @@ def test_launcher_pid_skips_venv_redirectors():
     # Started with `python -m mcsc_gui` from a terminal: no launcher
     images[3] = r"C:\Windows\System32\cmd.exe"
     assert update.launcher_pid(1, parents, images.get) is None
+
+
+# ------------------------------------------------------- version check
+
+
+def test_is_newer_compares_each_part_as_a_number():
+    assert update.is_newer("3.2.10", "3.2.9")
+    assert update.is_newer("3.3.0", "3.2.10")
+    assert update.is_newer("3.2.1", "3.2")
+    assert update.is_newer("3.2.1.post1", "3.2.1")
+    assert update.is_newer("3.2.1", "3.2.1.dev0")
+    assert not update.is_newer("3.2.0", "3.2")
+    assert not update.is_newer("3.2.1", "3.2.1")
+    assert not update.is_newer("3.2.0", "3.10.0")
+
+
+def test_is_newer_ignores_prereleases_and_invalid_versions():
+    assert not update.is_newer("4.0.0rc1", "3.2.1")  # pip --upgrade wouldn't install it
+    assert not update.is_newer("latest", "3.2.1")
+    assert not update.is_newer("3.3.0", "unknown")
+
+
+def test_check_for_updates_uses_pypi_version():
+    with mock.patch.object(update, "get_latest_version", return_value="3.10.0"), \
+            mock.patch.object(update, "get_current_version", return_value="3.9.12"):
+        assert update.check_for_updates()
+    with mock.patch.object(update, "get_latest_version", return_value=None):
+        assert not update.check_for_updates()
+
+
+# ------------------------------------------------- automatic update
+
+
+class _Settings:
+    def __init__(self, **values):
+        self.user_settings = dict(values)
+
+    def update_settings(self, **values):
+        self.user_settings.update(values)
+
+
+def _auto(settings, latest="9.0.0", launched=True, installed=True):
+    launch = mock.Mock(return_value=launched)
+    with mock.patch.object(update, "installed_as_package", return_value=installed), \
+            mock.patch.object(update, "get_current_version", return_value="3.2.1"):
+        result = update.auto_update_at_startup(settings, latest_version=lambda: latest,
+                                               launch=launch)
+    return result, launch
+
+
+def test_auto_update_starts_the_silent_updater_once_per_version():
+    settings = _Settings()
+    result, launch = _auto(settings)
+    assert result
+    launch.assert_called_once_with(silent=True)
+    assert settings.user_settings["auto_update_attempted"] == "9.0.0"
+
+    # Still on 3.2.1 at the next start: the update failed, don't loop
+    result, launch = _auto(settings)
+    assert not result
+    launch.assert_not_called()
+
+    # A newer release is tried again
+    result, launch = _auto(settings, latest="9.0.1")
+    assert result
+
+
+def test_auto_update_skipped_when_up_to_date_offline_or_from_source():
+    assert _auto(_Settings(), latest="3.2.1")[0] is False
+    assert _auto(_Settings(), latest=None)[0] is False
+    assert _auto(_Settings(), installed=False)[0] is False
+    assert _auto(_Settings(), launched=False)[0] is False
+
+
+def test_auto_update_never_raises():
+    def offline():
+        raise OSError("no network")
+
+    with mock.patch.object(update, "installed_as_package", return_value=True):
+        assert not update.auto_update_at_startup(_Settings(), latest_version=offline)
+
+
+def test_installed_as_package():
+    assert update.installed_as_package(r"C:\Python\Lib\site-packages\mcsc_gui\update.py")
+    assert not update.installed_as_package(r"C:\repo\src\mcsc_gui\update.py")
+
+
+def test_silent_flag_reaches_the_updater():
+    command = update.updater_command("u.py", pid=1, launcher=None, lang="en", icon=None,
+                                     log=None, relaunch=["py"], silent=True)
+    assert updater.parse_args(command[3:]).silent
+    assert not updater.parse_args(["--python", "p", "--package", "p", "--relaunch", "[]"]).silent
+
+
+def test_headless_reopens_the_app_even_when_pip_fails():
+    args = _args(relaunch=["py", "-m", "mcsc_gui", "--background"])
+    with mock.patch.object(updater, "run_pip", lambda *_a: 1), \
+            mock.patch.object(updater, "relaunch") as reopen:
+        assert updater.run_headless(args, updater.Translator("en"), updater.Log(None)) == 1
+    reopen.assert_called_once_with(["py", "-m", "mcsc_gui", "--background"])
+
+
+def test_headless_doesnt_reopen_an_app_that_never_closed():
+    args = _args(wait_pid=[123], relaunch=["py"])
+    with mock.patch.object(updater, "wait_for_pids", return_value=False), \
+            mock.patch.object(updater, "relaunch") as reopen:
+        assert updater.run_headless(args, updater.Translator("en"), updater.Log(None)) == 1
+    reopen.assert_not_called()
+
+
+def test_relaunch_keeps_background_option():
+    command = update.relaunch_command([r"C:\venv\Scripts\mcsc.exe", "--background"])
+    assert command[-1] == "--background"
+
+
+def test_relaunch_can_force_or_drop_background():
+    argv = ["mcsc.exe", "--debug"]
+    assert update.relaunch_command(argv, background=True)[-2:] == ["--debug", "--background"]
+    argv.append("--background")
+    assert "--background" not in update.relaunch_command(argv, background=False)
+    assert update.relaunch_command(argv)[-1] == "--background"
+
+
+def test_claim_auto_update_records_the_attempt():
+    settings = _Settings()
+    with mock.patch.object(update, "installed_as_package", return_value=True), \
+            mock.patch.object(update, "get_current_version", return_value="3.2.1"):
+        assert update.claim_auto_update(settings, "3.3.0")
+        assert not update.claim_auto_update(settings, "3.3.0")
+        assert not update.claim_auto_update(settings, "3.2.1")
+        assert not update.claim_auto_update(settings, None)
+    assert settings.user_settings["auto_update_attempted"] == "3.3.0"
